@@ -104,9 +104,10 @@ export default function TeacherMyExamsClient({
           <div className="mb-8">
             <Link
               href="/dashboard"
+              aria-label="İdarə panelinə qayıt"
               className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
             >
-              <span className="text-xl">←</span>
+              <span className="text-xl" aria-hidden="true">←</span>
               <span>İdarə panelinə qayıt</span>
             </Link>
             <div className="flex justify-between items-center">
@@ -120,6 +121,7 @@ export default function TeacherMyExamsClient({
               </div>
               <Link
                 href="/exams/create"
+                aria-label="Yeni imtahan yarat"
                 className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
               >
                 + Yeni İmtahan
@@ -169,6 +171,7 @@ export default function TeacherMyExamsClient({
               </p>
               <Link
                 href="/exams/create"
+                aria-label="İlk imtahanı yarat"
                 className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
               >
                 İlk İmtahanı Yarat
@@ -207,11 +210,11 @@ export default function TeacherMyExamsClient({
                         {exam.description || "Təsvir yoxdur"}
                       </p>
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span>📚 {exam.subject}</span>
-                        <span>📊 {exam.level}</span>
-                        <span>⏱️ {exam.duration} dəq</span>
+                        <span><span role="img" aria-label="Kitab">📚</span> {exam.subject}</span>
+                        <span><span role="img" aria-label="Statistika">📊</span> {exam.level}</span>
+                        <span><span role="img" aria-label="Vaxt">⏱️</span> {exam.duration} dəq</span>
                         <span>
-                          💰{" "}
+                          <span role="img" aria-label="Pul">💰</span>{" "}
                           {exam.price ||
                             (exam.duration === 60
                               ? 3
@@ -229,6 +232,7 @@ export default function TeacherMyExamsClient({
                   <div className="flex justify-end space-x-3 pt-4 border-t">
                     <Link
                       href={`/exams/${exam.id}/edit`}
+                      aria-label={`${exam.title} imtahanını redaktə et`}
                       className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-all"
                     >
                       Redaktə et

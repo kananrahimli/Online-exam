@@ -299,9 +299,10 @@ export default function EditExamPage() {
         <div className="mb-8">
           <Link
             href="/exams/my-exams"
+            aria-label="İmtahanlarım səhifəsinə qayıt"
             className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-4"
           >
-            ← İmtahanlarım
+            <span aria-hidden="true">←</span> İmtahanlarım
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
             İmtahanı Redaktə Et

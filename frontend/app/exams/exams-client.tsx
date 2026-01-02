@@ -79,7 +79,7 @@ export default function ExamsClient({
             <div className="flex items-center space-x-3">
               <Link href="/dashboard" className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
-                  <span className="text-white font-bold text-lg">📝</span>
+                  <span className="text-white font-bold text-lg" role="img" aria-label="İmtahan kağızı">📝</span>
                 </div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   Online İmtahan
@@ -99,6 +99,7 @@ export default function ExamsClient({
               )}
               <Link
                 href="/profile"
+                aria-label="Şəxsi məlumatlar səhifəsinə keç"
                 className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Şəxsi məlumatlar
@@ -121,7 +122,7 @@ export default function ExamsClient({
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Mövcud İmtahanlar 📚
+            Mövcud İmtahanlar <span role="img" aria-label="Kitab">📚</span>
           </h1>
           <p className="text-gray-600 text-lg">
             Müəllimlərinizin tərtib etdiyi imtahanları görüntüləyin
@@ -132,7 +133,7 @@ export default function ExamsClient({
         {teachers.length > 0 && (
           <div className="mb-8 bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-gray-200">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              🔍 Müəllimə görə filter et:
+              <span role="img" aria-label="Axtarış">🔍</span> Müəllimə görə filter et:
             </label>
             <select
               value={selectedTeacherId}
@@ -159,7 +160,7 @@ export default function ExamsClient({
           <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 rounded-lg shadow-md">
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <span className="text-2xl">ℹ️</span>
+                <span className="text-2xl" role="img" aria-label="Məlumat">ℹ️</span>
               </div>
               <div className="ml-3 flex-1">
                 <h3 className="text-lg font-semibold text-blue-900 mb-2">
@@ -169,11 +170,12 @@ export default function ExamsClient({
                   Müəllimlərin imtahanlarını görmək üçün müəllimləri izləməyə
                   başlayın.
                 </p>
-                <Link
-                  href="/profile"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
-                >
-                  Şəxsi məlumatlara get və müəllim əlavə et →
+              <Link
+                href="/profile"
+                aria-label="Şəxsi məlumatlara get və müəllim əlavə et"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+              >
+                  Şəxsi məlumatlara get və müəllim əlavə et <span aria-hidden="true">→</span>
                 </Link>
               </div>
             </div>
@@ -184,7 +186,7 @@ export default function ExamsClient({
         {exams.length === 0 ? (
           <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-12 text-center border border-gray-200">
             <div className="max-w-md mx-auto">
-              <div className="text-6xl mb-4">📝</div>
+              <div className="text-6xl mb-4"><span role="img" aria-label="İmtahan">📝</span></div>
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Hələ imtahan yoxdur
               </h3>
@@ -194,10 +196,11 @@ export default function ExamsClient({
                   : "Seçilmiş müəllimin hələ yayımlanmış imtahanı yoxdur"}
               </p>
               {teachers.length === 0 && (
-                <Link
-                  href="/profile"
-                  className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
-                >
+              <Link
+                href="/profile"
+                aria-label="Şəxsi məlumatlar səhifəsinə keç"
+                className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+              >
                   Şəxsi məlumatlar
                 </Link>
               )}
@@ -236,18 +239,18 @@ export default function ExamsClient({
 
                   <div className="space-y-2 mb-5">
                     <div className="flex items-center text-sm text-gray-700">
-                      <span className="mr-2">📚</span>
+                      <span className="mr-2" role="img" aria-label="Kitab">📚</span>
                       <span className="font-medium">{exam.subject}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-700">
-                      <span className="mr-2">⏱️</span>
+                      <span className="mr-2" role="img" aria-label="Vaxt">⏱️</span>
                       <span className="font-medium">
                         {exam.duration} dəqiqə
                       </span>
                     </div>
                     {exam.teacher && (
                       <div className="flex items-center text-sm text-gray-700">
-                        <span className="mr-2">👤</span>
+                        <span className="mr-2" role="img" aria-label="Müəllim">👤</span>
                         <span className="font-medium">
                           {exam.teacher.firstName} {exam.teacher.lastName}
                         </span>
@@ -255,11 +258,12 @@ export default function ExamsClient({
                     )}
                   </div>
 
-                  <Link
-                    href={`/exams/${exam.id}`}
-                    className="block w-full text-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl group-hover:scale-[1.02]"
-                  >
-                    İmtahana bax →
+                <Link
+                  href={`/exams/${exam.id}`}
+                  aria-label={`${exam.title} imtahanına bax`}
+                  className="block w-full text-center bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl group-hover:scale-[1.02]"
+                >
+                    İmtahana bax <span aria-hidden="true">→</span>
                   </Link>
                 </div>
               </div>

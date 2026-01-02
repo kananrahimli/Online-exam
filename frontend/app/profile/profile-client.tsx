@@ -204,7 +204,13 @@ export default function ProfileClient({
               <div className="flex items-center space-x-3">
                 <Link href="/dashboard" className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
-                    <span className="text-white font-bold text-lg">📝</span>
+                    <span
+                      className="text-white font-bold text-lg"
+                      role="img"
+                      aria-label="İmtahan kağızı"
+                    >
+                      📝
+                    </span>
                   </div>
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     Online İmtahan
@@ -226,6 +232,7 @@ export default function ProfileClient({
                 )}
                 <Link
                   href="/dashboard"
+                  aria-label="İdarə panelinə qayıt"
                   className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   İdarə paneli
@@ -258,7 +265,10 @@ export default function ProfileClient({
                     onClick={() => setEditing(true)}
                     className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
                   >
-                    Redaktə et ✏️
+                    Redaktə et{" "}
+                    <span role="img" aria-label="Qələm">
+                      ✏️
+                    </span>
                   </button>
                 ) : (
                   <div className="flex gap-2">
@@ -405,21 +415,30 @@ export default function ProfileClient({
             {currentUser?.role === "STUDENT" && (
               <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Balans 💰
+                  Balans{" "}
+                  <span role="img" aria-label="Pul">
+                    💰
+                  </span>
                 </h2>
                 <div className="mb-4">
                   <div className="text-4xl font-bold text-indigo-600 mb-2">
                     {(currentUser?.balance || 0).toFixed(2)} AZN
                   </div>
                   <p className="text-sm text-gray-500 italic">
-                    💡 Balans yalnız imtahanlar üçün istifadə oluna bilər
+                    <span role="img" aria-label="İpucu">
+                      💡
+                    </span>{" "}
+                    Balans yalnız imtahanlar üçün istifadə oluna bilər
                   </p>
                 </div>
                 <button
                   onClick={() => setShowAddBalanceModal(true)}
                   className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
                 >
-                  Balansı Artır ➕
+                  Balansı Artır{" "}
+                  <span role="img" aria-label="Əlavə et">
+                    ➕
+                  </span>
                 </button>
               </div>
             )}
@@ -506,9 +525,10 @@ export default function ProfileClient({
                 </p>
                 <Link
                   href="/dashboard"
+                  aria-label="İdarə panelinə qayıt"
                   className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
                 >
-                  İdarə panelinə qayıt →
+                  İdarə panelinə qayıt <span aria-hidden="true">→</span>
                 </Link>
               </div>
             )}
@@ -519,7 +539,10 @@ export default function ProfileClient({
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative">
                 <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  Balans Artır 💰
+                  Balans Artır{" "}
+                  <span role="img" aria-label="Pul">
+                    💰
+                  </span>
                 </h3>
 
                 {message && message.type === "error" && (

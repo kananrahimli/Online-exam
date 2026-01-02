@@ -408,7 +408,7 @@ export default function TakeExamPage() {
                           </div>
                           {answers[question.id] && (
                             <span className="text-green-600 text-sm font-medium">
-                              ✓ Cavablandırılıb
+                              <span role="img" aria-label="Cavablandırılıb">✓</span> Cavablandırılıb
                             </span>
                           )}
                         </div>

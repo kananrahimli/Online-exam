@@ -150,9 +150,10 @@ export default function ExamResultClient({
         <div className="mb-8">
           <Link
             href="/exams"
+            aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl" aria-hidden="true">←</span>
             <span>İdarə panelinə qayıt</span>
           </Link>
         </div>
@@ -192,6 +193,7 @@ export default function ExamResultClient({
           <div className="text-center">
             <Link
               href="/exams"
+              aria-label="Digər imtahanları görüntülə"
               className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >
               Digər imtahanlara bax
@@ -257,7 +259,7 @@ export default function ExamResultClient({
                       </p>
                       {entry.prizeAmount > 0 && (
                         <p className="text-sm text-green-600 font-semibold">
-                          +{entry.prizeAmount.toFixed(2)} AZN 🏆
+                          +{entry.prizeAmount.toFixed(2)} AZN <span role="img" aria-label="Mükafat kuboku">🏆</span>
                         </p>
                       )}
                     </div>
@@ -312,7 +314,7 @@ export default function ExamResultClient({
                               : "bg-red-100 text-red-700"
                           }`}
                         >
-                          {isCorrect ? "✓ Doğru" : "✗ Səhv"}
+                          {isCorrect ? <><span role="img" aria-label="Düzgün">✓</span> Doğru</> : <><span role="img" aria-label="Səhv">✗</span> Səhv</>}
                         </span>
                         {answer && (
                           <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm">
@@ -387,12 +389,12 @@ export default function ExamResultClient({
                                 </span>
                                 {isCorrectOption && (
                                   <span className="text-green-700 font-semibold">
-                                    ✓ Düzgün cavab
+                                    <span role="img" aria-label="Düzgün">✓</span> Düzgün cavab
                                   </span>
                                 )}
                                 {isSelected && !isCorrectOption && (
                                   <span className="text-red-700 font-semibold">
-                                    ✗ Sizin seçiminiz
+                                    <span role="img" aria-label="Səhv">✗</span> Sizin seçiminiz
                                   </span>
                                 )}
                               </div>

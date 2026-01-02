@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Mövcud İmtahanlar",
-  description:
-    "İzlədiyiniz müəllimlərin yaratdığı imtahanları görüntüləyin və imtahan verin.",
+  title: "Şifrəni Unutmusunuz?",
+  description: "Şifrənizi bərpa edin - Online İmtahan Platforması",
   robots: {
     index: true,
     follow: true,
   },
 };
 
-export default function ExamsLayout({
+export default function ForgotPasswordLayout({
   children,
 }: {
   children: React.ReactNode;

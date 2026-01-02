@@ -140,9 +140,10 @@ export default function ExamDetailsClient({
           <div className="mb-8">
             <Link
               href="/exams"
+              aria-label="İdarə panelinə qayıt"
               className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
             >
-              <span className="text-xl">←</span>
+              <span className="text-xl" aria-hidden="true">←</span>
               <span>İdarə panelinə qayıt</span>
             </Link>
           </div>
@@ -160,7 +161,7 @@ export default function ExamDetailsClient({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
                 <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-3">📚</span>
+                  <span className="text-2xl mr-3" role="img" aria-label="Kitab">📚</span>
                   <div>
                     <p className="text-sm text-gray-600">Fənn</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -172,7 +173,7 @@ export default function ExamDetailsClient({
 
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
                 <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-3">📊</span>
+                  <span className="text-2xl mr-3" role="img" aria-label="Statistika">📊</span>
                   <div>
                     <p className="text-sm text-gray-600">Səviyyə</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -184,7 +185,7 @@ export default function ExamDetailsClient({
 
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
                 <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-3">⏱️</span>
+                  <span className="text-2xl mr-3" role="img" aria-label="Vaxt">⏱️</span>
                   <div>
                     <p className="text-sm text-gray-600">Müddət</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -196,7 +197,7 @@ export default function ExamDetailsClient({
 
               <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-100">
                 <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-3">📝</span>
+                  <span className="text-2xl mr-3" role="img" aria-label="İmtahan">📝</span>
                   <div>
                     <p className="text-sm text-gray-600">Sual sayı</p>
                     <p className="text-lg font-semibold text-gray-900">
@@ -209,7 +210,7 @@ export default function ExamDetailsClient({
               {exam.teacher && (
                 <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 md:col-span-2">
                   <div className="flex items-center mb-2">
-                    <span className="text-2xl mr-3">👤</span>
+                    <span className="text-2xl mr-3" role="img" aria-label="Müəllim">👤</span>
                     <div>
                       <p className="text-sm text-gray-600">Müəllim</p>
                       <p className="text-lg font-semibold text-gray-900">
@@ -239,7 +240,7 @@ export default function ExamDetailsClient({
                   disabled={starting}
                   className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl text-lg"
                 >
-                  {starting ? "Başlanılır..." : "İmtahana başla →"}
+                  {starting ? "Başlanılır..." : <>İmtahana başla <span aria-hidden="true">→</span></>}
                 </button>
               </div>
               <p className="text-xs text-gray-500 text-center sm:text-right mt-4">
@@ -255,7 +256,7 @@ export default function ExamDetailsClient({
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full">
               <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                Xəbərdarlıq ⚠️
+                Xəbərdarlıq <span role="img" aria-label="Xəbərdarlıq">⚠️</span>
               </h3>
               <p className="text-gray-700 mb-4">
                 İmtahana başladığınız zaman balansınızdan{" "}

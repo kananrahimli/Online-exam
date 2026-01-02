@@ -155,9 +155,10 @@ export default function AnalyticsClient({
         <div className="mb-8">
           <Link
             href="/dashboard"
+            aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl" aria-hidden="true">←</span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Statistika</h1>
@@ -171,6 +172,7 @@ export default function AnalyticsClient({
             </p>
             <Link
               href="/exams/create"
+              aria-label="Yeni imtahan yarat"
               className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >
               İmtahan Yarat
@@ -189,7 +191,7 @@ export default function AnalyticsClient({
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📊</span>
+                    <span className="text-2xl" role="img" aria-label="Statistika">📊</span>
                   </div>
                 </div>
               </div>
@@ -203,7 +205,7 @@ export default function AnalyticsClient({
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📝</span>
+                    <span className="text-2xl" role="img" aria-label="İmtahan">📝</span>
                   </div>
                 </div>
               </div>
@@ -222,7 +224,7 @@ export default function AnalyticsClient({
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">⭐</span>
+                    <span className="text-2xl" role="img" aria-label="Ulduz">⭐</span>
                   </div>
                 </div>
               </div>
@@ -236,7 +238,7 @@ export default function AnalyticsClient({
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">👥</span>
+                    <span className="text-2xl" role="img" aria-label="İstifadəçilər">👥</span>
                   </div>
                 </div>
               </div>
@@ -358,11 +360,13 @@ export default function AnalyticsClient({
                               {attempt.position > 0 &&
                                 attempt.position <= 3 && (
                                   <span className="text-2xl">
-                                    {attempt.position === 1
-                                      ? "🥇"
-                                      : attempt.position === 2
-                                      ? "🥈"
-                                      : "🥉"}
+                                    <span role="img" aria-label={`${attempt.position === 1 ? "Birinci" : attempt.position === 2 ? "İkinci" : "Üçüncü"} yer medalı`}>
+                                      {attempt.position === 1
+                                        ? "🥇"
+                                        : attempt.position === 2
+                                        ? "🥈"
+                                        : "🥉"}
+                                    </span>
                                   </span>
                                 )}
                               {attempt.position > 0 && (
@@ -379,7 +383,7 @@ export default function AnalyticsClient({
                                 <span className="text-sm font-semibold text-green-600">
                                   +{attempt.prizeAmount.toFixed(2)} AZN mükafat
                                 </span>
-                                <span className="text-xs">💰</span>
+                                <span className="text-xs" role="img" aria-label="Pul">💰</span>
                               </div>
                             )}
                           </div>
@@ -453,8 +457,8 @@ export default function AnalyticsClient({
                                           }`}
                                         >
                                           {answer.isCorrect
-                                            ? "✓ Düzgün"
-                                            : "✗ Səhv"}
+                                            ? <><span role="img" aria-label="Düzgün">✓</span> Düzgün</>
+                                            : <><span role="img" aria-label="Səhv">✗</span> Səhv</>}
                                         </span>
                                       )}
                                     </div>

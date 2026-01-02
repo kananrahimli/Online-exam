@@ -209,9 +209,10 @@ export default function CreateExamPage() {
         <div className="mb-8">
           <Link
             href="/dashboard"
+            aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl" aria-hidden="true">←</span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">

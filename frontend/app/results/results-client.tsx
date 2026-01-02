@@ -131,9 +131,10 @@ export default function ResultsClient({
         <div className="mb-8">
           <Link
             href="/dashboard"
+            aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl" aria-hidden="true">←</span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Nəticələr</h1>
@@ -147,6 +148,7 @@ export default function ResultsClient({
             <p className="text-gray-500 text-lg mb-4">Hələ nəticə yoxdur</p>
             <Link
               href="/exams"
+              aria-label="Mövcud imtahanları görüntülə"
               className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >
               İmtahanlar görüntülə
@@ -189,20 +191,20 @@ export default function ResultsClient({
                           {exam?.title || "Naməlum imtahan"}
                         </h2>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span>📚 {exam?.subject}</span>
-                          <span>📊 {exam?.level}</span>
+                          <span><span role="img" aria-label="Kitab">📚</span> {exam?.subject}</span>
+                          <span><span role="img" aria-label="Statistika">📊</span> {exam?.level}</span>
                           {latestAttempt.score !== null &&
                             latestAttempt.totalScore !== null && (
                               <>
                                 <span>
-                                  ⭐ Bal: {latestAttempt.score} /{" "}
+                                  <span role="img" aria-label="Ulduz">⭐</span> Bal: {latestAttempt.score} /{" "}
                                   {latestAttempt.totalScore} ({percentage.toFixed(2)}%)
                                 </span>
                               </>
                             )}
                           {leaderboard && leaderboard.currentUserPosition && (
                             <span className="font-semibold text-indigo-600">
-                              📊 Yeriniz: {leaderboard.currentUserPosition} /{" "}
+                              <span role="img" aria-label="Statistika">📊</span> Yeriniz: {leaderboard.currentUserPosition} /{" "}
                               {leaderboard.totalParticipants}
                             </span>
                           )}
@@ -279,11 +281,13 @@ export default function ResultsClient({
                                       <div className="flex items-center">
                                         {index < 3 ? (
                                           <span className="text-2xl">
-                                            {index === 0
-                                              ? "🥇"
-                                              : index === 1
-                                              ? "🥈"
-                                              : "🥉"}
+                                            <span role="img" aria-label={`${index === 0 ? "Birinci" : index === 1 ? "İkinci" : "Üçüncü"} yer medalı`}>
+                                              {index === 0
+                                                ? "🥇"
+                                                : index === 1
+                                                ? "🥈"
+                                                : "🥉"}
+                                            </span>
                                           </span>
                                         ) : (
                                           <span className="text-sm font-medium text-gray-900">
@@ -319,7 +323,7 @@ export default function ResultsClient({
                                             +{entry.prizeAmount} AZN
                                           </span>
                                           <span className="text-xs text-gray-500">
-                                            💰
+                                            <span role="img" aria-label="Pul">💰</span>
                                           </span>
                                         </div>
                                       ) : (

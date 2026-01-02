@@ -109,13 +109,14 @@ export default function MyExamsClient({
         <div className="mb-8">
           <Link
             href="/dashboard"
+            aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl" aria-hidden="true">←</span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            İmtahanlarım 📚
+            İmtahanlarım <span role="img" aria-label="Kitab">📚</span>
           </h1>
           <p className="text-gray-600 text-lg">
             Verdiyiniz imtahanlar və nəticələri
@@ -124,7 +125,7 @@ export default function MyExamsClient({
 
         {attempts.length === 0 ? (
           <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-xl p-12 text-center border border-gray-200">
-            <div className="text-6xl mb-4">📝</div>
+            <div className="text-6xl mb-4"><span role="img" aria-label="İmtahan">📝</span></div>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">
               Hələ imtahan verməmisiniz
             </h3>
@@ -133,9 +134,10 @@ export default function MyExamsClient({
             </p>
             <Link
               href="/exams"
+              aria-label="Mövcud imtahanları görüntülə"
               className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
             >
-              İmtahanlar görüntülə →
+              İmtahanlar görüntülə <span aria-hidden="true">→</span>
             </Link>
           </div>
         ) : (
@@ -232,17 +234,19 @@ export default function MyExamsClient({
                     {attempt.status === "COMPLETED" && (
                       <Link
                         href={`/exam-attempts/${attempt.id}/result`}
+                        aria-label={`${attempt.exam?.title || "İmtahan"} nəticələrinə bax`}
                         className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl text-center"
                       >
-                        Nəticələrə bax →
+                        Nəticələrə bax <span aria-hidden="true">→</span>
                       </Link>
                     )}
                     {attempt.status === "IN_PROGRESS" && (
                       <Link
                         href={`/exams/${attempt.examId}/take?attemptId=${attempt.id}`}
+                        aria-label={`${attempt.exam?.title || "İmtahan"} davam et`}
                         className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl text-center"
                       >
-                        Davam et →
+                        Davam et <span aria-hidden="true">→</span>
                       </Link>
                     )}
                   </div>

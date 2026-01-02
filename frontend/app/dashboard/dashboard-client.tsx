@@ -45,7 +45,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                 href="/dashboard"
                 className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
               >
-                <span className="text-white font-bold text-lg">📝</span>
+                <span className="text-white font-bold text-lg" role="img" aria-label="İmtahan kağızı">📝</span>
               </Link>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Online İmtahan
@@ -62,6 +62,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               </div>
               <Link
                 href="/profile"
+                aria-label="Şəxsi məlumatlar səhifəsinə keç"
                 className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Şəxsi məlumatlar
@@ -71,6 +72,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                   useAuthStore.getState().logout();
                   // logout() already redirects to /login
                 }}
+                aria-label="Hesabdan çıxış et"
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Çıxış
@@ -89,7 +91,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
         )}
         <div className="mb-8">
           <h2 className="text-4xl font-bold text-gray-900 mb-2">
-            Xoş gəlmisiniz! 👋
+            Xoş gəlmisiniz! <span role="img" aria-label="Əl salama">👋</span>
           </h2>
           <p className="text-gray-600 text-lg">
             Sadə, intuitiv və sürətli - bütün imtahanlarınız bir yerdə
@@ -98,14 +100,15 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
 
         {initialUser.role === UserRole.STUDENT && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Link
+              <Link
               href="/exams"
+              aria-label="Mövcud imtahanlara keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">📚</span>
+                  <span className="text-2xl" role="img" aria-label="Kitab">📚</span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   Mövcud İmtahanlar
@@ -114,19 +117,20 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                   Bütün mövcud imtahanları görüntüləyin və ödəniş edin
                 </p>
                 <span className="inline-flex items-center text-blue-600 font-semibold group-hover:translate-x-2 transition-transform">
-                  Kecid et →
+                  Kecid et <span aria-hidden="true">→</span>
                 </span>
               </div>
             </Link>
 
             <Link
               href="/my-exams"
+              aria-label="İmtahanlarıma keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">📝</span>
+                  <span className="text-2xl" role="img" aria-label="İmtahan">📝</span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">
                   İmtahanlarım
@@ -135,19 +139,20 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                   Verdiyiniz imtahanları görüntüləyin
                 </p>
                 <span className="inline-flex items-center text-purple-600 font-semibold group-hover:translate-x-2 transition-transform">
-                  Kecid et →
+                  Kecid et <span aria-hidden="true">→</span>
                 </span>
               </div>
             </Link>
 
             <Link
               href="/results"
+              aria-label="Nəticələrə keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">📊</span>
+                  <span className="text-2xl" role="img" aria-label="Statistika">📊</span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-green-600 transition-colors">
                   Nəticələr
@@ -156,26 +161,27 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                   İmtahan nəticələrinizi görüntüləyin
                 </p>
                 <span className="inline-flex items-center text-green-600 font-semibold group-hover:translate-x-2 transition-transform">
-                  Kecid et →
+                  Kecid et <span aria-hidden="true">→</span>
                 </span>
               </div>
             </Link>
 
             <Link
               href="/profile"
+              aria-label="Şəxsi məlumatlara keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-pink-400 to-pink-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">👤</span>
+                  <span className="text-2xl" role="img" aria-label="İstifadəçi">👤</span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-pink-600 transition-colors">
                   Şəxsi məlumatlar
                 </h3>
                 <p className="text-gray-600 mb-4">Müəllimlərinizi idarə edin</p>
                 <span className="inline-flex items-center text-pink-600 font-semibold group-hover:translate-x-2 transition-transform">
-                  Kecid et →
+                  Kecid et <span aria-hidden="true">→</span>
                 </span>
               </div>
             </Link>
@@ -186,12 +192,13 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Link
               href="/exams/create"
+              aria-label="Yeni imtahan yarat"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">➕</span>
+                  <span className="text-2xl" role="img" aria-label="Əlavə et">➕</span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">
                   Yeni İmtahan
@@ -202,12 +209,13 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
 
             <Link
               href="/exams/my-exams"
+              aria-label="İmtahanlarım səhifəsinə keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl">📋</span>
+                  <span className="text-2xl" role="img" aria-label="Siyahı">📋</span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   İmtahanlarım
@@ -220,6 +228,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
 
             <Link
               href="/exams/ai-generate"
+              aria-label="AI ilə imtahan yarat"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
@@ -238,6 +247,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
 
             <Link
               href="/analytics"
+              aria-label="Statistika səhifəsinə keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>

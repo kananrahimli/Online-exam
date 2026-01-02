@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Mövcud İmtahanlar",
-  description:
-    "İzlədiyiniz müəllimlərin yaratdığı imtahanları görüntüləyin və imtahan verin.",
+  title: "İmtahanı Redaktə Et",
+  description: "İmtahan məlumatlarını yeniləyin - Online İmtahan Platforması",
   robots: {
     index: true,
     follow: true,
   },
 };
 
-export default function ExamsLayout({
+export default function EditExamLayout({
   children,
 }: {
   children: React.ReactNode;

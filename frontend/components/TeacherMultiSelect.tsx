@@ -14,22 +14,29 @@ interface TeacherMultiSelectProps {
   selectedTeachers: string[];
   onChange: (teacherIds: string[]) => void;
   placeholder?: string;
+  teachers?: Teacher[]; // Optional: if provided, won't fetch from API
 }
 
 export default function TeacherMultiSelect({
   selectedTeachers,
   onChange,
   placeholder = "Müəllim seçin...",
+  teachers: propTeachers,
 }: TeacherMultiSelectProps) {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>(propTeachers || []);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchTeachers();
-  }, []);
+    // If teachers are provided via props, use them; otherwise fetch
+    if (propTeachers) {
+      setTeachers(propTeachers);
+    } else {
+      fetchTeachers();
+    }
+  }, [propTeachers]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

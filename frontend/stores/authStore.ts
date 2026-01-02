@@ -57,10 +57,34 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
     logout: () => {
       if (typeof window !== "undefined") {
+        // Clear localStorage
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        
+        // Clear cookies - try different approaches to ensure they're deleted
+        const cookieNames = ["token", "user"];
+        const expires = "Thu, 01 Jan 1970 00:00:00 UTC";
+        
+        cookieNames.forEach((name) => {
+          // Clear with path=/
+          document.cookie = `${name}=; path=/; expires=${expires}; SameSite=Lax;`;
+          // Clear with empty path
+          document.cookie = `${name}=; path=; expires=${expires}; SameSite=Lax;`;
+          // Clear with max-age=0
+          document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax;`;
+          // Clear without SameSite
+          document.cookie = `${name}=; path=/; expires=${expires};`;
+        });
+        
+        // Clear state first
+        set({ user: null, token: null, initialized: true });
+        
+        // Force full page reload to clear server-side cookies and ensure clean state
+        window.location.href = "/login";
+      } else {
+        // Server-side: just clear state
+        set({ user: null, token: null, initialized: true });
       }
-      set({ user: null, token: null, initialized: true });
     },
     initialize: () => {
       const state = get();

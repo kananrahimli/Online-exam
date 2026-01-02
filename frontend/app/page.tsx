@@ -1,8 +1,56 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Ana Səhifə",
+  description:
+    "AI dəstəklı online imtahan sistemi - müəllimlər üçün asan, şagirdlər üçün şəffaf və sürətli. Yüksək nəticələr göstər, mükafatlar qazan!",
+  openGraph: {
+    title: "Online İmtahan Platforması - AI dəstəklı imtahan sistemi",
+    description:
+      "AI dəstəklı online imtahan sistemi - müəllimlər üçün asan, şagirdlər üçün şəffaf və sürətli. Yüksək nəticələr göstər, mükafatlar qazan!",
+  },
+};
+
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic';
 
 export default function Home() {
+  // Structured Data (JSON-LD) for SEO
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Online İmtahan Platforması",
+    description:
+      "AI dəstəklı online imtahan sistemi - müəllimlər üçün asan, şagirdlər üçün şəffaf və sürətli",
+    url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    applicationCategory: "EducationalApplication",
+    operatingSystem: "Web",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "AZN",
+    },
+    featureList: [
+      "AI dəstəklı imtahan yaratma",
+      "Real-time nəticələr",
+      "Mükafat sistemi",
+      "Balans sistemi",
+      "Online imtahan verə bilmə",
+    ],
+    provider: {
+      "@type": "Organization",
+      name: "Online İmtahan Platforması",
+    },
+  };
+
   return (
-    <div className="h-screen w-full overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <main className="h-screen w-full overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col">
       {/* Hero Section */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col justify-center">
         <div className="text-center mb-4">
@@ -163,6 +211,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </div>
+      </main>
+    </>
   );
 }

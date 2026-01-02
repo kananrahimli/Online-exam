@@ -51,4 +51,11 @@ export class TeacherStudentController {
   async getMyStudents(@CurrentUser() user: any) {
     return this.teacherStudentService.getMyStudents(user.id);
   }
+
+  @Get('teachers')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.STUDENT)
+  async getTeachers(@CurrentUser() user: any) {
+    return this.teacherStudentService.getTeachersWithMyTeachers(user.id);
+  }
 }

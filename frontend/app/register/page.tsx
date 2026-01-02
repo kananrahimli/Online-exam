@@ -68,10 +68,15 @@ export default function RegisterPage() {
       const response = await api.post("/auth/register", registerData);
       setToken(response.data.token);
       setUser(response.data.user);
-      // Save to localStorage manually as well for compatibility
+      // Save to localStorage and cookies
       if (typeof window !== "undefined") {
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
+        // Also save to cookies for server-side access
+        document.cookie = `token=${response.data.token}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `user=${encodeURIComponent(
+          JSON.stringify(response.data.user)
+        )}; path=/; max-age=86400; SameSite=Lax`;
       }
       router.push("/dashboard");
     } catch (err: any) {

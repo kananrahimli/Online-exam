@@ -49,7 +49,7 @@ export class ExamService {
           for (const [qIndex, q] of topic.questions.entries()) {
             // All questions are 1 point
             const questionPoints = 1;
-            
+
             // Create question with options first to get option IDs
             const createdQuestion = await this.prisma.question.create({
               data: {
@@ -112,11 +112,11 @@ export class ExamService {
         // Create question with options first to get option IDs
         const createdQuestion = await this.prisma.question.create({
           data: {
-              examId: exam.id,
-              type: q.type,
-              content: q.content,
-              order: index,
-              points: 1, // All questions are 1 point
+            examId: exam.id,
+            type: q.type,
+            content: q.content,
+            order: index,
+            points: 1, // All questions are 1 point
             modelAnswer: q.modelAnswer,
             options: q.options
               ? {
@@ -273,20 +273,22 @@ export class ExamService {
       ...topicSubjects.map((t) => t.subject),
     ];
 
-    const uniqueSubjects = Array.from(new Set(allSubjects)).filter(Boolean).sort();
+    const uniqueSubjects = Array.from(new Set(allSubjects))
+      .filter(Boolean)
+      .sort();
 
     return uniqueSubjects;
   }
 
   async findPublished(studentId?: string) {
-    // Only show exams published less than 1 minute ago (TEST MODE - normally 7 days)
-    const oneMinuteAgo = new Date();
-    oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
+    // Only show exams published less than 3 days ago
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
     let where: any = {
       status: ExamStatus.PUBLISHED,
       publishedAt: {
-        gte: oneMinuteAgo, // Only show exams published in the last 1 minute (TEST MODE - normally 7 days)
+        gte: threeDaysAgo, // Only show exams published in the last 3 days
       },
     };
 
@@ -328,8 +330,30 @@ export class ExamService {
       },
     });
 
+    // If studentId provided, filter out exams that student has already completed
+    let filteredExams = exams;
+    if (studentId) {
+      // Get all exam IDs that student has completed
+      const completedAttempts = await this.prisma.examAttempt.findMany({
+        where: {
+          studentId,
+          status: ExamAttemptStatus.COMPLETED,
+        },
+        select: {
+          examId: true,
+        },
+      });
+
+      const completedExamIds = new Set(
+        completedAttempts.map((attempt) => attempt.examId),
+      );
+
+      // Filter out exams that student has already completed
+      filteredExams = exams.filter((exam) => !completedExamIds.has(exam.id));
+    }
+
     // Add calculated price to each exam
-    return exams.map((exam) => ({
+    return filteredExams.map((exam) => ({
       ...exam,
       price: this.calculatePrice(exam.duration),
     }));
@@ -379,7 +403,7 @@ export class ExamService {
       throw new NotFoundException('İmtahan tapılmadı');
     }
 
-    // Check and award prizes if exam is no longer active (1 minute passed in TEST MODE - normally 7 days)
+    // Check and award prizes if exam is no longer active (3 days passed)
     // This ensures prizes are awarded even if exam is removed from published list
     if (exam.publishedAt) {
       await this.examAttemptService.checkAndAwardPrizes(exam.id);
@@ -522,7 +546,11 @@ export class ExamService {
             data: {
               examId: id,
               name: topic.name,
-              subject: topic.subject || exam?.subject || updateExamDto.subject || 'Riyaziyyat', // Use topic subject or fallback
+              subject:
+                topic.subject ||
+                exam?.subject ||
+                updateExamDto.subject ||
+                'Riyaziyyat', // Use topic subject or fallback
               order: topicIndex,
               points: 1, // All questions are 1 point
             },
@@ -533,7 +561,7 @@ export class ExamService {
             for (const [qIndex, q] of topic.questions.entries()) {
               // All questions are 1 point
               const questionPoints = 1;
-              
+
               // Create question with options first to get option IDs
               const createdQuestion = await this.prisma.question.create({
                 data: {
@@ -794,7 +822,11 @@ export class ExamService {
 
         // If no actual prize found but in top 3, calculate theoretical amount
         // (this shouldn't happen, but handle it just in case)
-        if (prizeAmount === 0 && tiedAttempts.length === 1 && currentPosition <= 3) {
+        if (
+          prizeAmount === 0 &&
+          tiedAttempts.length === 1 &&
+          currentPosition <= 3
+        ) {
           prizeAmount = prizes[currentPosition - 1];
         }
       }
@@ -804,7 +836,7 @@ export class ExamService {
         const position = currentPosition;
         // scorePercentage is 0.01-1.00, multiply by 100 to get percentage (1-100)
         const percentage = parseFloat(scorePercentage) * 100;
-        
+
         // Use actual prize amount if available, otherwise use calculated amount
         const actualPrize = prizeMap.get(attempt.studentId) || prizeAmount;
 

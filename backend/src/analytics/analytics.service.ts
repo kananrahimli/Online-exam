@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class AnalyticsService {
@@ -53,7 +54,7 @@ export class AnalyticsService {
     });
 
     const totalAttempts = attempts.length;
-    const completedAttempts = attempts.filter(
+    const completedAttemptsCount = attempts.filter(
       (a) => a.status === 'COMPLETED',
     ).length;
 
@@ -68,42 +69,116 @@ export class AnalyticsService {
 
     const uniqueStudents = new Set(attempts.map((a) => a.studentId)).size;
 
+    // Get prize payments for this exam to get actual prize amounts
+    const prizePayments = await this.prisma.payment.findMany({
+      where: {
+        examId,
+        transactionId: {
+          startsWith: 'PRIZE-',
+        },
+        status: PaymentStatus.COMPLETED,
+      },
+      select: {
+        studentId: true,
+        amount: true,
+      },
+    });
+
+    // Create a map of studentId -> actual prize amount
+    const prizeMap = new Map<string, number>();
+    prizePayments.forEach((payment) => {
+      prizeMap.set(payment.studentId, payment.amount);
+    });
+
     // Prize amounts: 1st = 10 AZN, 2nd = 7 AZN, 3rd = 3 AZN
     const prizes = [10, 7, 3];
 
-    // Sort completed attempts by score to determine positions
-    const sortedAttempts = attempts
-      .filter((a) => a.status === 'COMPLETED' && a.score !== null && a.totalScore !== null)
-      .sort((a, b) => {
-        const scoreA = (a.score || 0) / (a.totalScore || 1);
-        const scoreB = (b.score || 0) / (b.totalScore || 1);
-        if (scoreB !== scoreA) {
-          return scoreB - scoreA;
-        }
-        const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-        const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-        return dateA - dateB; // Earlier submission wins tie
-      });
+    // Get completed attempts and group by score percentage (similar to getLeaderboard logic)
+    const completedAttempts = attempts.filter(
+      (a) =>
+        a.status === 'COMPLETED' && a.score !== null && a.totalScore !== null,
+    );
 
-    // Create a map of attempt ID to position and prize
-    const attemptPositions = new Map<string, { position: number; prizeAmount: number }>();
-    sortedAttempts.forEach((attempt, index) => {
-      const position = index + 1;
-      const prizeAmount = position <= 3 ? prizes[position - 1] : 0;
-      attemptPositions.set(attempt.id, { position, prizeAmount });
-    });
+    // Group attempts by score percentage
+    const attemptsByScore = new Map<string, typeof completedAttempts>();
+
+    for (const attempt of completedAttempts) {
+      const scorePercentage =
+        attempt.score && attempt.totalScore && attempt.totalScore > 0
+          ? ((attempt.score || 0) / attempt.totalScore).toFixed(2)
+          : '0.00';
+
+      if (!attemptsByScore.has(scorePercentage)) {
+        attemptsByScore.set(scorePercentage, []);
+      }
+      attemptsByScore.get(scorePercentage)!.push(attempt);
+    }
+
+    // Calculate positions with prize amounts (considering ties)
+    const attemptPositions = new Map<
+      string,
+      { position: number; prizeAmount: number }
+    >();
+    let currentPosition = 1;
+    const sortedScores = Array.from(attemptsByScore.keys()).sort(
+      (a, b) => parseFloat(b) - parseFloat(a),
+    );
+
+    for (const scorePercentage of sortedScores) {
+      const tiedAttempts = attemptsByScore.get(scorePercentage)!;
+
+      // Calculate prize amount for this group
+      // For tied students, all should show the same prize amount
+      // Logic: If 2 students tie and occupy positions 2 and 3, they split (7+3)/2 = 5 AZN each
+      let prizeAmount = 0;
+      if (currentPosition <= 3) {
+        // Calculate total prize amount for positions occupied by this group
+        // Example: if tied students occupy positions 2 and 3, total = 7 + 3 = 10
+        let totalPrizeAmount = 0;
+
+        for (
+          let i = 0;
+          i < tiedAttempts.length && currentPosition + i <= 3;
+          i++
+        ) {
+          const prizeIndex = currentPosition + i - 1;
+          if (prizeIndex < prizes.length) {
+            totalPrizeAmount += prizes[prizeIndex];
+          }
+        }
+
+        // Split prize equally among tied students (same logic as awardPrizes)
+        // Example: if 2 students tied at positions 2 and 3: (7+3)/2 = 5 AZN each
+        prizeAmount = totalPrizeAmount / tiedAttempts.length;
+      }
+
+      // Add all tied attempts to positions map with the same prize amount
+      // All tied students should show the same prize amount
+      for (const attempt of tiedAttempts) {
+        attemptPositions.set(attempt.id, {
+          position: currentPosition,
+          prizeAmount: prizeAmount, // Same prize amount for all tied students
+        });
+      }
+
+      currentPosition += tiedAttempts.length;
+    }
 
     return {
       examId,
       examTitle: exam.title,
       totalAttempts,
-      completedAttempts,
+      completedAttempts: completedAttemptsCount,
       averageScore: parseFloat(averageScore.toFixed(2)),
       totalStudents: uniqueStudents,
-      completionRate: totalAttempts > 0 ? completedAttempts / totalAttempts : 0,
+      completionRate:
+        totalAttempts > 0 ? completedAttemptsCount / totalAttempts : 0,
       attempts: attempts
         .map((attempt) => {
-          const positionInfo = attemptPositions.get(attempt.id) || { position: 0, prizeAmount: 0 };
+          const positionInfo = attemptPositions.get(attempt.id) || {
+            position: 0,
+            prizeAmount: 0,
+          };
           return {
             id: attempt.id,
             student: attempt.student,

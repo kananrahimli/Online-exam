@@ -118,4 +118,45 @@ export class TeacherStudentService {
 
     return relations.map((r) => r.student);
   }
+
+  async getTeachersWithMyTeachers(studentId: string) {
+    // Get all teachers
+    const allTeachers = await this.prisma.user.findMany({
+      where: {
+        role: 'TEACHER',
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+      orderBy: [
+        { lastName: 'asc' },
+        { firstName: 'asc' },
+      ],
+    });
+
+    // Get my teachers (teachers that student follows)
+    const myTeachersRelations = await this.prisma.teacherStudent.findMany({
+      where: { studentId },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    const myTeachers = myTeachersRelations.map((r) => r.teacher);
+
+    return {
+      allTeachers,
+      myTeachers,
+    };
+  }
 }

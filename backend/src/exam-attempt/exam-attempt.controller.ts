@@ -84,4 +84,13 @@ export class ExamAttemptController {
       user.id,
     );
   }
+
+  @Post('test/award-prizes/:examId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN)
+  async testAwardPrizes(@Param('examId') examId: string) {
+    // Test endpoint to manually trigger prize awarding
+    await this.examAttemptService.checkAndAwardPrizes(examId);
+    return { message: 'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)' };
+  }
 }

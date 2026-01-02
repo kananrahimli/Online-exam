@@ -26,7 +26,6 @@ export class PaymentController {
     return this.paymentService.addBalance(
       user.id,
       addBalanceDto.amount,
-      addBalanceDto.examId,
     );
   }
 

@@ -538,15 +538,17 @@ export class ExamAttemptService {
       },
     });
 
-    // Award prizes to top 3 students (after exam is removed from published list - 7 days after publish)
-    // We'll check when to award prizes - if exam was published 7+ days ago, award immediately
+    // Award prizes to top 3 students (after exam is removed from published list - 1 minute after publish in TEST MODE, normally 7 days)
+    // We'll check when to award prizes - if exam was published 1+ minute ago, award immediately (TEST MODE - normally 7 days)
     // Otherwise, schedule for when exam is removed from published list
     await this.checkAndAwardPrizes(attempt.examId);
 
     return updatedAttempt;
   }
 
-  private async checkAndAwardPrizes(examId: string) {
+  async checkAndAwardPrizes(examId: string) {
+    console.log(`[PRIZE] checkAndAwardPrizes called for examId: ${examId}`);
+
     // Check if exam exists and get publish date
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
@@ -558,25 +560,39 @@ export class ExamAttemptService {
 
     if (!exam || !exam.publishedAt) {
       // Exam not published yet, don't award prizes
+      console.log(
+        `[PRIZE] Exam not found or not published yet for examId: ${examId}`,
+      );
       return;
     }
 
-    // Check if 7 days have passed since publish date (exam is removed from published list)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Check if 1 minute has passed since publish date (exam is removed from published list) (TEST MODE - normally 7 days)
+    const oneMinuteAgo = new Date();
+    oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
 
     const publishDate = new Date(exam.publishedAt);
-    const shouldAwardPrizes = publishDate <= sevenDaysAgo;
+    const shouldAwardPrizes = publishDate <= oneMinuteAgo;
+
+    console.log(
+      `[PRIZE] Exam ${examId} - Published: ${publishDate}, OneMinuteAgo: ${oneMinuteAgo}, ShouldAward: ${shouldAwardPrizes}`,
+    );
 
     if (shouldAwardPrizes) {
       // Exam has been removed from published list, award prizes now
+      console.log(`[PRIZE] Awarding prizes for examId: ${examId}`);
       await this.awardPrizes(examId);
+    } else {
+      console.log(
+        `[PRIZE] Exam ${examId} is still active, prizes will be awarded later`,
+      );
     }
-    // If exam is still in published list (< 7 days), prizes will be awarded later
-    // This will be handled when the next submission happens after 7 days pass
+    // If exam is still in published list (< 1 minute), prizes will be awarded later
+    // This will be handled when the next submission happens after 1 minute passes (TEST MODE - normally 7 days)
   }
 
   private async awardPrizes(examId: string) {
+    console.log(`[PRIZE] awardPrizes called for examId: ${examId}`);
+
     // Get all completed attempts for this exam, sorted by score (desc) and submission time (asc)
     const allAttempts = await this.prisma.examAttempt.findMany({
       where: {
@@ -591,6 +607,10 @@ export class ExamAttemptService {
         { submittedAt: 'asc' }, // Earlier submission wins tie
       ],
     });
+
+    console.log(
+      `[PRIZE] Found ${allAttempts.length} completed attempts for exam ${examId}`,
+    );
 
     // Prize amounts: 1st = 10 AZN, 2nd = 7 AZN, 3rd = 3 AZN
     const prizes = [10, 7, 3];
@@ -656,15 +676,27 @@ export class ExamAttemptService {
 
         // Only award if not already awarded
         if (!existingPrize) {
+          console.log(
+            `[PRIZE] Awarding ${prizePerStudent} AZN to student ${attempt.studentId} (position ${currentPosition})`,
+          );
+
           // Update student balance
-          await this.prisma.user.update({
+          const updatedUser = await this.prisma.user.update({
             where: { id: attempt.studentId },
             data: {
               balance: {
                 increment: prizePerStudent,
               },
             },
+            select: {
+              id: true,
+              balance: true,
+            },
           });
+
+          console.log(
+            `[PRIZE] Student ${attempt.studentId} balance updated to: ${updatedUser.balance} AZN`,
+          );
 
           // Create payment record for prize
           await this.prisma.payment.create({
@@ -676,6 +708,10 @@ export class ExamAttemptService {
               transactionId: `PRIZE-${currentPosition}-${examId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             },
           });
+        } else {
+          console.log(
+            `[PRIZE] Student ${attempt.studentId} already received prize for exam ${examId}`,
+          );
         }
       }
 
@@ -727,6 +763,9 @@ export class ExamAttemptService {
       throw new BadRequestException('İmtahan hələ təqdim olunmayıb');
     }
 
+    // Check and award prizes if exam is no longer active (1 minute passed in TEST MODE - normally 7 days)
+    await this.checkAndAwardPrizes(attempt.examId);
+
     return attempt;
   }
 
@@ -743,6 +782,7 @@ export class ExamAttemptService {
             subject: true,
             level: true,
             duration: true,
+            publishedAt: true,
             teacher: {
               select: {
                 id: true,
@@ -758,6 +798,12 @@ export class ExamAttemptService {
         startedAt: 'desc',
       },
     });
+
+    // Check and award prizes for exams that are no longer active (7 days passed)
+    const uniqueExamIds = [...new Set(attempts.map((a) => a.exam.id))];
+    for (const examId of uniqueExamIds) {
+      await this.checkAndAwardPrizes(examId);
+    }
 
     return attempts;
   }

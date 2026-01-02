@@ -148,39 +148,39 @@ export class PaymentService {
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + payment.exam.duration);
 
-        // Create exam attempt if not exists
-        let attempt = payment.attempt;
-        if (!attempt) {
-          attempt = await this.prisma.examAttempt.create({
-            data: {
-              examId: payment.examId,
-              studentId: payment.studentId,
-              expiresAt,
-              status: ExamAttemptStatus.IN_PROGRESS,
-            },
-          });
-        }
-
-        // Calculate price if not set (fixed pricing)
-        let finalAmount = payment.amount || 3; // default 1 saat
-        if (!payment.amount) {
-          if (payment.exam.duration === 60) finalAmount = 3;
-          else if (payment.exam.duration === 120) finalAmount = 5;
-          else if (payment.exam.duration === 180) finalAmount = 10;
-        }
-
-        // Update payment
-        await this.prisma.payment.update({
-          where: { id: paymentId },
+      // Create exam attempt if not exists
+      let attempt = payment.attempt;
+      if (!attempt) {
+        attempt = await this.prisma.examAttempt.create({
           data: {
-            status: PaymentStatus.COMPLETED,
-            amount: finalAmount,
-            transactionId:
-              payment.transactionId ||
-              `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            attemptId: attempt.id,
+            examId: payment.examId,
+            studentId: payment.studentId,
+            expiresAt,
+            status: ExamAttemptStatus.IN_PROGRESS,
           },
         });
+      }
+
+      // Calculate price if not set (fixed pricing)
+      let finalAmount = payment.amount || 3; // default 1 saat
+      if (!payment.amount) {
+        if (payment.exam.duration === 60) finalAmount = 3;
+        else if (payment.exam.duration === 120) finalAmount = 5;
+        else if (payment.exam.duration === 180) finalAmount = 10;
+      }
+
+      // Update payment
+      await this.prisma.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: PaymentStatus.COMPLETED,
+          amount: finalAmount,
+          transactionId:
+            payment.transactionId ||
+            `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          attemptId: attempt.id,
+        },
+      });
 
       // Ödəniş uğurlu olduqdan sonra balansa əlavə et
       await this.prisma.user.update({
@@ -220,7 +220,7 @@ export class PaymentService {
     return { message: 'Ödəniş ləğv edildi' };
   }
 
-  async addBalance(studentId: string, amount: number, examId?: string) {
+  async addBalance(studentId: string, amount: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: studentId },
     });
@@ -237,11 +237,11 @@ export class PaymentService {
       throw new BadRequestException('Məbləğ müsbət olmalıdır');
     }
 
-    // Create payment record with PENDING status
+    // Create payment record with PENDING status (examId is null for balance top-ups)
     const payment = await this.prisma.payment.create({
       data: {
         studentId,
-        examId: examId || null,
+        examId: null, // Balans artırma konkret imtahana bağlı deyil
         amount,
         status: PaymentStatus.PENDING,
         transactionId: `BAL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

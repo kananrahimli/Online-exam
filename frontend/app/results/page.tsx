@@ -43,7 +43,7 @@ interface LeaderboardData {
 
 export default function ResultsPage() {
   const router = useRouter();
-  const { user, token, initialize } = useAuthStore();
+  const { user, token, initialize, setUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [attempts, setAttempts] = useState<ExamAttemptWithExam[]>([]);
   const [leaderboards, setLeaderboards] = useState<
@@ -83,6 +83,15 @@ export default function ResultsPage() {
       uniqueExamIds.forEach((examId) => {
         fetchLeaderboard(examId);
       });
+
+      // Refresh user data to get updated balance (prizes may have been awarded)
+      try {
+        const userResponse = await api.get("/auth/me");
+        setUser(userResponse.data);
+      } catch (err) {
+        console.error("Error refreshing user data:", err);
+        // Don't fail the whole page if user refresh fails
+      }
     } catch (err: any) {
       console.error("Error fetching attempts:", err);
     } finally {
@@ -138,9 +147,10 @@ export default function ResultsPage() {
         <div className="mb-8">
           <Link
             href="/dashboard"
-            className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-4"
+            className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            ← İdarə panelinə qayıt
+            <span className="text-xl">←</span>
+            <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Nəticələr</h1>
           <p className="text-gray-600">
@@ -175,9 +185,9 @@ export default function ResultsPage() {
 
               const percentage =
                 latestAttempt.totalScore && latestAttempt.totalScore > 0
-                  ? Math.round(
-                      ((latestAttempt.score || 0) / latestAttempt.totalScore) *
-                        100
+                  ? parseFloat(
+                      (((latestAttempt.score || 0) / latestAttempt.totalScore) *
+                        100).toFixed(2)
                     )
                   : 0;
 
@@ -204,7 +214,7 @@ export default function ResultsPage() {
                               <>
                                 <span>
                                   ⭐ Bal: {latestAttempt.score} /{" "}
-                                  {latestAttempt.totalScore} ({percentage}%)
+                                  {latestAttempt.totalScore} ({percentage.toFixed(2)}%)
                                 </span>
                               </>
                             )}
@@ -318,7 +328,7 @@ export default function ResultsPage() {
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       <div className="text-sm font-semibold text-gray-900">
-                                        {entry.percentage}%
+                                        {entry.percentage.toFixed(2)}%
                                       </div>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">

@@ -37,7 +37,6 @@ export default function ProfilePage() {
   });
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [addingBalance, setAddingBalance] = useState(false);
 
   const fetchMyTeachers = async () => {
@@ -90,7 +89,6 @@ export default function ProfilePage() {
       // Create payment for balance addition
       const response = await api.post("/payments/add-balance", {
         amount: parseFloat(balanceAmount),
-        examId: selectedExamId || undefined,
       });
 
       // Show confirmation dialog
@@ -125,7 +123,6 @@ export default function ProfilePage() {
         // Close modal first
         setShowAddBalanceModal(false);
         setBalanceAmount("");
-        setSelectedExamId(null);
 
         // Show success message
         setMessage({
@@ -205,21 +202,42 @@ export default function ProfilePage() {
       return;
     }
 
-    if (user) {
-      setProfileData({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        phone: user.phone || "",
-      });
-    }
+    // Refresh user data to get updated balance (prizes may have been awarded)
+    const refreshUser = async () => {
+      try {
+        const userResponse = await api.get("/auth/me");
+        const updatedUser = userResponse.data;
+        setUser(updatedUser);
+        setProfileData({
+          firstName: updatedUser.firstName || "",
+          lastName: updatedUser.lastName || "",
+          email: updatedUser.email || "",
+          phone: updatedUser.phone || "",
+        });
 
-    if (user?.role === "STUDENT") {
-      fetchMyTeachers();
-    } else {
-      setLoading(false);
-    }
-  }, [token, router, initialize, user]);
+        // After refreshing user, check role and fetch teachers if needed
+        if (updatedUser?.role === "STUDENT") {
+          fetchMyTeachers();
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error refreshing user data:", err);
+        if (user) {
+          setProfileData({
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
+            email: user.email || "",
+            phone: user.phone || "",
+          });
+        }
+        setLoading(false);
+      }
+    };
+
+    refreshUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, router, initialize, setUser]);
 
   if (loading) {
     return (
@@ -283,11 +301,6 @@ export default function ProfilePage() {
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Profil 👤</h1>
-            <p className="text-gray-600 text-lg">Məlumatlarınızı idarə edin</p>
-          </div>
-
           <div className="space-y-6">
             {/* Profile Info */}
             <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
@@ -601,8 +614,8 @@ export default function ProfilePage() {
                     onClick={() => {
                       setShowAddBalanceModal(false);
                       setBalanceAmount("");
-                      setSelectedExamId(null);
                       setMessage(null);
+                      setAddingBalance(false);
                     }}
                     className="flex-1 px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all"
                   >

@@ -2,15 +2,22 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
-import { ExamStatus, ExamAttemptStatus } from '@prisma/client';
+import { ExamStatus, ExamAttemptStatus, PaymentStatus } from '@prisma/client';
+import { ExamAttemptService } from '../exam-attempt/exam-attempt.service';
 
 @Injectable()
 export class ExamService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => ExamAttemptService))
+    private examAttemptService: ExamAttemptService,
+  ) {}
 
   async create(teacherId: string, createExamDto: CreateExamDto) {
     const { topics, questions, readingTexts, ...examData } = createExamDto;
@@ -272,14 +279,14 @@ export class ExamService {
   }
 
   async findPublished(studentId?: string) {
-    // Only show exams published less than 7 days ago
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Only show exams published less than 1 minute ago (TEST MODE - normally 7 days)
+    const oneMinuteAgo = new Date();
+    oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
 
     let where: any = {
       status: ExamStatus.PUBLISHED,
       publishedAt: {
-        gte: sevenDaysAgo, // Only show exams published in the last 7 days
+        gte: oneMinuteAgo, // Only show exams published in the last 1 minute (TEST MODE - normally 7 days)
       },
     };
 
@@ -370,6 +377,12 @@ export class ExamService {
 
     if (!exam) {
       throw new NotFoundException('İmtahan tapılmadı');
+    }
+
+    // Check and award prizes if exam is no longer active (1 minute passed in TEST MODE - normally 7 days)
+    // This ensures prizes are awarded even if exam is removed from published list
+    if (exam.publishedAt) {
+      await this.examAttemptService.checkAndAwardPrizes(exam.id);
     }
 
     // Hide correct answers if user is a student
@@ -718,32 +731,98 @@ export class ExamService {
       ],
     });
 
+    // Get prize payments for this exam to get actual prize amounts
+    const prizePayments = await this.prisma.payment.findMany({
+      where: {
+        examId,
+        transactionId: {
+          startsWith: 'PRIZE-',
+        },
+        status: PaymentStatus.COMPLETED,
+      },
+      select: {
+        studentId: true,
+        amount: true,
+      },
+    });
+
+    // Create a map of studentId -> actual prize amount
+    const prizeMap = new Map<string, number>();
+    prizePayments.forEach((payment) => {
+      prizeMap.set(payment.studentId, payment.amount);
+    });
+
     // Prize amounts: 1st = 10 AZN, 2nd = 7 AZN, 3rd = 3 AZN
     const prizes = [10, 7, 3];
 
-    // Calculate positions and percentages
-    const leaderboard = attempts.map((attempt, index) => {
-      const position = index + 1;
-      const percentage =
-        attempt.totalScore && attempt.totalScore > 0
-          ? ((attempt.score || 0) / attempt.totalScore) * 100
-          : 0;
+    // Group attempts by score percentage (similar to awardPrizes logic)
+    const attemptsByScore = new Map<string, typeof attempts>();
 
-      // Check if this student received a prize
-      const prizeAmount = position <= 3 ? prizes[position - 1] : 0;
+    for (const attempt of attempts) {
+      const scorePercentage =
+        attempt.score && attempt.totalScore && attempt.totalScore > 0
+          ? ((attempt.score || 0) / attempt.totalScore).toFixed(2)
+          : '0.00';
 
-      return {
-        position,
-        studentId: attempt.studentId,
-        studentName: `${attempt.student.firstName} ${attempt.student.lastName}`,
-        score: attempt.score || 0,
-        totalScore: attempt.totalScore || 0,
-        percentage: parseFloat(percentage.toFixed(2)),
-        submittedAt: attempt.submittedAt,
-        isCurrentUser: attempt.studentId === studentId,
-        prizeAmount, // Prize amount in AZN (0 if not in top 3)
-      };
-    });
+      if (!attemptsByScore.has(scorePercentage)) {
+        attemptsByScore.set(scorePercentage, []);
+      }
+      attemptsByScore.get(scorePercentage)!.push(attempt);
+    }
+
+    // Calculate positions with prize amounts (considering ties)
+    const leaderboard: any[] = [];
+    let currentPosition = 1;
+    const sortedScores = Array.from(attemptsByScore.keys()).sort(
+      (a, b) => parseFloat(b) - parseFloat(a),
+    );
+
+    for (const scorePercentage of sortedScores) {
+      const tiedAttempts = attemptsByScore.get(scorePercentage)!;
+
+      // Calculate prize amount for this group
+      let prizeAmount = 0;
+      if (currentPosition <= 3) {
+        // Check if any student in this group received a prize
+        for (const attempt of tiedAttempts) {
+          const actualPrize = prizeMap.get(attempt.studentId);
+          if (actualPrize) {
+            prizeAmount = actualPrize; // Use actual prize amount from payment
+            break;
+          }
+        }
+
+        // If no actual prize found but in top 3, calculate theoretical amount
+        // (this shouldn't happen, but handle it just in case)
+        if (prizeAmount === 0 && tiedAttempts.length === 1 && currentPosition <= 3) {
+          prizeAmount = prizes[currentPosition - 1];
+        }
+      }
+
+      // Add all tied attempts to leaderboard
+      for (const attempt of tiedAttempts) {
+        const position = currentPosition;
+        // scorePercentage is 0.01-1.00, multiply by 100 to get percentage (1-100)
+        const percentage = parseFloat(scorePercentage) * 100;
+        
+        // Use actual prize amount if available, otherwise use calculated amount
+        const actualPrize = prizeMap.get(attempt.studentId) || prizeAmount;
+
+        leaderboard.push({
+          position,
+          studentId: attempt.studentId,
+          studentName: `${attempt.student.firstName} ${attempt.student.lastName}`,
+          score: attempt.score || 0,
+          totalScore: attempt.totalScore || 0,
+          percentage: parseFloat(percentage.toFixed(2)),
+          submittedAt: attempt.submittedAt,
+          isCurrentUser: attempt.studentId === studentId,
+          prizeAmount: actualPrize, // Actual prize amount (factored for ties)
+        });
+      }
+
+      currentPosition += tiedAttempts.length;
+    }
 
     // Find current user's position
     const currentUserPosition =

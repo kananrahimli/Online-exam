@@ -11,7 +11,7 @@ export default function ExamResultPage() {
   const router = useRouter();
   const params = useParams();
   const attemptId = params.attemptId as string;
-  const { user, token, initialize } = useAuthStore();
+  const { user, token, initialize, setUser } = useAuthStore();
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -26,6 +26,7 @@ export default function ExamResultPage() {
     }
 
     fetchResult();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, router, initialize, attemptId]);
 
   const fetchResult = async () => {
@@ -33,10 +34,19 @@ export default function ExamResultPage() {
       setLoading(true);
       const response = await api.get(`/exam-attempts/${attemptId}/result`);
       setResult(response.data);
-      
+
       // Fetch leaderboard after getting result
       if (response.data?.exam?.id) {
         fetchLeaderboard(response.data.exam.id);
+      }
+
+      // Refresh user data to get updated balance (prizes may have been awarded)
+      try {
+        const userResponse = await api.get("/auth/me");
+        setUser(userResponse.data);
+      } catch (err) {
+        console.error("Error refreshing user data:", err);
+        // Don't fail the whole page if user refresh fails
       }
     } catch (err: any) {
       console.error("Error fetching result:", err);
@@ -93,7 +103,9 @@ export default function ExamResultPage() {
       // Find the option that matches correctAnswer (could be ID or index)
       if (question.correctAnswer && question.correctAnswer.length > 15) {
         // It's an option ID
-        return question.options.find((opt: any) => opt.id === question.correctAnswer);
+        return question.options.find(
+          (opt: any) => opt.id === question.correctAnswer
+        );
       } else {
         // It might be an index
         const index = parseInt(question.correctAnswer, 10);
@@ -151,7 +163,8 @@ export default function ExamResultPage() {
 
   const questions = getAllQuestions();
   const percentage = calculatePercentage();
-  const correctCount = result.answers?.filter((ans: any) => ans.isCorrect).length || 0;
+  const correctCount =
+    result.answers?.filter((ans: any) => ans.isCorrect).length || 0;
   const totalCount = questions.length;
 
   return (
@@ -207,96 +220,6 @@ export default function ExamResultPage() {
             </Link>
           </div>
         </div>
-
-        {/* Leaderboard */}
-        {leaderboard && leaderboard.leaderboard && leaderboard.leaderboard.length > 0 && (
-          <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-gray-200 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Liderlər Cədvəli ({leaderboard.totalParticipants} iştirakçı)
-            </h2>
-            
-            {leaderboard.currentUserPosition && (
-              <div className="mb-4 p-4 bg-indigo-50 border-2 border-indigo-300 rounded-lg">
-                <p className="text-sm font-semibold text-indigo-900">
-                  📊 Sizin yeriniz: <span className="text-lg">{leaderboard.currentUserPosition}</span>
-                </p>
-              </div>
-            )}
-
-            {loadingLeaderboard ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Yer
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Şagird
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Bal
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Faiz
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {leaderboard.leaderboard.map((entry: any, index: number) => (
-                      <tr
-                        key={entry.studentId}
-                        className={`${
-                          entry.isCurrentUser
-                            ? "bg-indigo-50 border-l-4 border-indigo-500"
-                            : "hover:bg-gray-50"
-                        }`}
-                      >
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center">
-                            {index < 3 ? (
-                              <span className="text-2xl">
-                                {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
-                              </span>
-                            ) : (
-                              <span className="text-sm font-medium text-gray-900">
-                                {entry.position}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {entry.studentName}
-                            {entry.isCurrentUser && (
-                              <span className="ml-2 text-xs text-indigo-600 font-semibold">
-                                (Siz)
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {entry.score} / {entry.totalScore}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {entry.percentage}%
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Detailed Results */}
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-gray-200">
@@ -369,11 +292,18 @@ export default function ExamResultPage() {
                             if (question.correctAnswer) {
                               if (question.correctAnswer.length > 15) {
                                 // It's an option ID
-                                isCorrectOption = question.correctAnswer === option.id;
+                                isCorrectOption =
+                                  question.correctAnswer === option.id;
                               } else {
                                 // It might be an index, check if this option's order matches
-                                const correctIndex = parseInt(question.correctAnswer, 10);
-                                if (!isNaN(correctIndex) && option.order === correctIndex) {
+                                const correctIndex = parseInt(
+                                  question.correctAnswer,
+                                  10
+                                );
+                                if (
+                                  !isNaN(correctIndex) &&
+                                  option.order === correctIndex
+                                ) {
                                   isCorrectOption = true;
                                 }
                                 // Also check direct ID match in case it's stored as ID
@@ -455,4 +385,3 @@ export default function ExamResultPage() {
     </div>
   );
 }
-

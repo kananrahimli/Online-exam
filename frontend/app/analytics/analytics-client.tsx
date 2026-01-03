@@ -313,285 +313,86 @@ export default function AnalyticsClient({
                   {(() => {
                     const answers = selectedStudentAttempt.answers || [];
 
-                    // Group answers by readingTextId
+                    // Group answers by readingTextId for quick lookup
                     const groupedMap = new Map<string, any[]>();
                     const ungrouped: any[] = [];
 
-                    answers.forEach((answer: any) => {
+                    answers.forEach((answer: any, index: number) => {
                       if (answer.readingTextId && answer.readingText) {
                         if (!groupedMap.has(answer.readingTextId)) {
                           groupedMap.set(answer.readingTextId, []);
                         }
-                        groupedMap.get(answer.readingTextId)!.push(answer);
+                        groupedMap.get(answer.readingTextId)!.push({
+                          ...answer,
+                          originalIndex: index,
+                        });
                       } else {
-                        ungrouped.push(answer);
+                        ungrouped.push({ ...answer, originalIndex: index });
                       }
                     });
 
                     const result: JSX.Element[] = [];
+                    const shownReadingTexts = new Set<string>();
 
-                    // Render grouped answers with reading texts
-                    groupedMap.forEach((groupAnswers, readingTextId) => {
-                      const readingText = groupAnswers[0]?.readingText;
-                      const questionNumbers = groupAnswers.map(
-                        (ans: any, idx: number) => {
-                          const originalIndex = answers.findIndex(
-                            (a: any) => a.id === ans.id
+                    // Combine all answers and sort by original index to maintain order
+                    const allAnswersSorted = [
+                      ...ungrouped,
+                      ...Array.from(groupedMap.values()).flat(),
+                    ].sort((a, b) => a.originalIndex - b.originalIndex);
+
+                    // Render answers in order, showing reading text before first answer of each group
+                    allAnswersSorted.forEach((answer: any) => {
+                      const answerIndex = answer.originalIndex;
+
+                      // Check if this answer belongs to a reading text
+                      if (answer.readingTextId && answer.readingText) {
+                        // Show reading text before first answer of this group
+                        if (!shownReadingTexts.has(answer.readingTextId)) {
+                          const groupAnswers =
+                            groupedMap.get(answer.readingTextId) || [];
+                          const questionNumbers = groupAnswers.map(
+                            (ans: any) => ans.originalIndex + 1
                           );
-                          return originalIndex + 1;
-                        }
-                      );
 
-                      // Add reading text before first answer
-                      if (readingText) {
-                        result.push(
-                          <div
-                            key={`text-${readingTextId}`}
-                            className="bg-blue-100 rounded-lg border border-blue-200 p-6 shadow-sm"
-                          >
-                            {/* Text Content */}
-                            <p className="text-blue-900 leading-7 text-base whitespace-pre-wrap">
-                              {readingText.content}
-                            </p>
-
-                            {/* Questions Info */}
-                            <div className="mt-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <svg
-                                  className="w-5 h-5 text-blue-600"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                </svg>
-                                <span className="text-blue-700 font-semibold text-base">
-                                  İpucu:
-                                </span>
-                              </div>
-                              <p className="text-sm font-semibold text-blue-900 mb-1">
-                                Bu mətn əsasında həll edilməli olan suallar:
-                              </p>
-                              <p className="text-sm text-blue-800">
-                                {questionNumbers
-                                  .map((num: number) => `Sual ${num}`)
-                                  .join(", ")}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // Add answers for this reading text
-                      groupAnswers.forEach((answer: any) => {
-                        const answerIndex = answers.findIndex(
-                          (a: any) => a.id === answer.id
-                        );
-
-                        result.push(
-                          <div key={answer.id} className="space-y-2">
+                          result.push(
                             <div
-                              className={`rounded-lg p-4 border-2 ${
-                                answer.isCorrect
-                                  ? "bg-green-50 border-green-200"
-                                  : "bg-red-50 border-red-200"
-                              }`}
+                              key={`text-${answer.readingTextId}`}
+                              className="bg-blue-100 rounded-lg border border-blue-200 p-6 shadow-sm"
                             >
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-sm font-semibold text-gray-700">
-                                      Sual {answerIndex + 1}
-                                    </span>
-                                    {answer.readingText && (
-                                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                        📖 Mətn əsaslı
-                                      </span>
-                                    )}
-                                    <span
-                                      className={`text-xs font-medium px-2 py-1 rounded ${
-                                        answer.isCorrect
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-red-100 text-red-700"
-                                      }`}
-                                    >
-                                      {answer.isCorrect ? "✓ Düzgün" : "✗ Səhv"}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm font-medium text-gray-900 mb-1">
-                                    {answer.questionContent}
-                                  </p>
-                                  <p className="text-xs text-gray-600 mb-2">
-                                    Maksimum bal: {answer.questionPoints}
-                                  </p>
+                              {/* Text Content */}
+                              <p className="text-blue-900 leading-7 text-base whitespace-pre-wrap">
+                                {answer.readingText.content}
+                              </p>
 
-                                  {answer.questionType ===
-                                  QuestionType.OPEN_ENDED ? (
-                                    <div className="space-y-2">
-                                      <div>
-                                        <p className="text-xs font-medium text-gray-700 mb-1">
-                                          Şagirdin cavabı:
-                                        </p>
-                                        <p className="text-sm text-gray-800 bg-white p-2 rounded border">
-                                          {answer.content || "Cavab yoxdur"}
-                                        </p>
-                                      </div>
-                                      {answer.modelAnswer && (
-                                        <div>
-                                          <p className="text-xs font-medium text-gray-700 mb-1">
-                                            Nümunə cavab:
-                                          </p>
-                                          <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
-                                            {answer.modelAnswer}
-                                          </p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {answer.questionOptions &&
-                                        answer.questionOptions.length > 0 && (
-                                          <div>
-                                            <p className="text-xs font-medium text-gray-700 mb-2">
-                                              Bütün variantlar:
-                                            </p>
-                                            <div className="space-y-2">
-                                              {answer.questionOptions.map(
-                                                (
-                                                  opt: any,
-                                                  optIndex: number
-                                                ) => {
-                                                  const isSelected =
-                                                    answer.optionId === opt.id;
-                                                  let isCorrect = false;
-                                                  if (answer.correctAnswer) {
-                                                    if (
-                                                      answer.correctAnswer
-                                                        .length > 15
-                                                    ) {
-                                                      isCorrect =
-                                                        answer.correctAnswer ===
-                                                        opt.id;
-                                                    } else {
-                                                      const correctIndex =
-                                                        parseInt(
-                                                          answer.correctAnswer,
-                                                          10
-                                                        );
-                                                      if (
-                                                        !isNaN(correctIndex) &&
-                                                        correctIndex ===
-                                                          optIndex
-                                                      ) {
-                                                        isCorrect = true;
-                                                      }
-                                                    }
-                                                  }
-
-                                                  return (
-                                                    <div
-                                                      key={opt.id}
-                                                      className={`p-3 rounded-lg border-2 ${
-                                                        isSelected && isCorrect
-                                                          ? "bg-green-100 border-green-500"
-                                                          : isSelected &&
-                                                            !isCorrect
-                                                          ? "bg-red-100 border-red-500"
-                                                          : isCorrect &&
-                                                            !isSelected
-                                                          ? "bg-blue-50 border-blue-300"
-                                                          : "bg-gray-50 border-gray-200"
-                                                      }`}
-                                                    >
-                                                      <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-gray-900">
-                                                          {String.fromCharCode(
-                                                            65 + optIndex
-                                                          )}
-                                                          .
-                                                        </span>
-                                                        <span className="flex-1 text-gray-900">
-                                                          {opt.content}
-                                                        </span>
-                                                        {isSelected && (
-                                                          <span className="text-xs font-semibold px-2 py-1 rounded bg-indigo-100 text-indigo-700">
-                                                            Seçilmiş
-                                                          </span>
-                                                        )}
-                                                        {isCorrect && (
-                                                          <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700">
-                                                            ✓ Düzgün cavab
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  );
-                                                }
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-                                    </div>
-                                  )}
+                              {/* Questions Info */}
+                              <div className="mt-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <svg
+                                    className="w-5 h-5 text-blue-600"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                  </svg>
+                                  <span className="text-blue-700 font-semibold text-base">
+                                    İpucu:
+                                  </span>
                                 </div>
-
-                                {answer.questionType ===
-                                  QuestionType.OPEN_ENDED && (
-                                  <div className="mt-3 flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={answer.questionPoints}
-                                      value={
-                                        gradingAnswers[answer.id] ??
-                                        answer.points ??
-                                        0
-                                      }
-                                      onChange={(e) =>
-                                        setGradingAnswers({
-                                          ...gradingAnswers,
-                                          [answer.id]:
-                                            parseFloat(e.target.value) || 0,
-                                        })
-                                      }
-                                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
-                                    />
-                                    <span className="text-sm text-gray-600">
-                                      / {answer.questionPoints}
-                                    </span>
-                                    <button
-                                      onClick={() =>
-                                        handleGradeAnswer(
-                                          selectedStudentAttempt.id,
-                                          answer.id,
-                                          gradingAnswers[answer.id] ??
-                                            answer.points ??
-                                            0
-                                        )
-                                      }
-                                      className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-all"
-                                    >
-                                      Yadda saxla
-                                    </button>
-                                  </div>
-                                )}
-
-                                <div className="mt-2 text-xs text-gray-500">
-                                  Alınan bal: {answer.points ?? 0} /{" "}
-                                  {answer.questionPoints}
-                                </div>
+                                <p className="text-sm font-semibold text-blue-900 mb-1">
+                                  Bu mətn əsasında həll edilməli olan suallar:
+                                </p>
+                                <p className="text-sm text-blue-800">
+                                  {questionNumbers
+                                    .map((num: number) => `Sual ${num}`)
+                                    .join(", ")}
+                                </p>
                               </div>
                             </div>
-                          </div>
-                        );
-                      });
-                    });
-
-                    // Render ungrouped answers
-                    ungrouped.forEach((answer: any) => {
-                      const answerIndex = answers.findIndex(
-                        (a: any) => a.id === answer.id
-                      );
+                          );
+                          shownReadingTexts.add(answer.readingTextId);
+                        }
+                      }
 
                       result.push(
                         <div key={answer.id} className="space-y-2">
@@ -608,6 +409,11 @@ export default function AnalyticsClient({
                                   <span className="text-sm font-semibold text-gray-700">
                                     Sual {answerIndex + 1}
                                   </span>
+                                  {answer.readingText && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                      📖 Mətn əsaslı
+                                    </span>
+                                  )}
                                   <span
                                     className={`text-xs font-medium px-2 py-1 rounded ${
                                       answer.isCorrect

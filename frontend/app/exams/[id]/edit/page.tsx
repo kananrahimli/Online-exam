@@ -161,14 +161,33 @@ export default function EditExamPage() {
 
   useEffect(() => {
     initialize();
-    if (!token) {
-      router.push("/login");
-      return;
-    }
 
-    fetchExam();
+    // Check token after a short delay to allow initialize to complete
+    const checkAuth = setTimeout(() => {
+      const currentToken = useAuthStore.getState().token;
+      const tokenFromStorage =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+      // Only redirect if token is truly missing from both store and localStorage
+      // And only if we're still on this page (not already redirecting)
+      if (
+        !currentToken &&
+        !tokenFromStorage &&
+        window.location.pathname.includes("/edit")
+      ) {
+        router.push("/login");
+        return;
+      }
+
+      // If token exists, fetch exam
+      if (currentToken || tokenFromStorage) {
+        fetchExam();
+      }
+    }, 100);
+
+    return () => clearTimeout(checkAuth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, router, initialize, examId]);
+  }, [examId]);
 
   const fetchExam = async () => {
     try {

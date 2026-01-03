@@ -30,12 +30,24 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token
+      // Unauthorized
       if (typeof window !== "undefined") {
+        const currentPath = window.location.pathname;
+        const isCreatePage = currentPath.includes("/exams/create");
+        const isEditPage = currentPath.includes("/exams/") && currentPath.includes("/edit");
+        
+        // On create/edit pages, DO NOT redirect or clear storage
+        // Let the page handle the error and show message to user
+        if (isCreatePage || isEditPage) {
+          // Do nothing - let the page handle it
+          return Promise.reject(error);
+        }
+        
+        // For all other pages, clear storage and redirect
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         // Only redirect if not already on login page
-        if (window.location.pathname !== "/login") {
+        if (currentPath !== "/login") {
           window.location.href = "/login";
         }
       }

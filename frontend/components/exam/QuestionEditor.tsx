@@ -134,7 +134,8 @@ export default function QuestionEditor({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Bal input-u comment-ə alındı - bütün suallar 1 baldır */}
+                  {/* <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Bal
@@ -148,7 +149,7 @@ export default function QuestionEditor({
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
                       />
                     </div>
-                  </div>
+                  </div> */}
 
                   {isMultipleChoice && (
                     <div>
@@ -157,7 +158,7 @@ export default function QuestionEditor({
                       </label>
                       <div className="space-y-2">
                         {[0, 1, 2, 3].map((optIndex) => (
-                          <div key={optIndex} className="flex items-center gap-2">
+                          <div key={optIndex} className="flex items-center space-x-2">
                             <span className="w-8 text-sm font-medium text-gray-700">
                               {String.fromCharCode(65 + optIndex)}.
                             </span>
@@ -166,6 +167,13 @@ export default function QuestionEditor({
                               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
                               placeholder={`Variant ${String.fromCharCode(65 + optIndex)}`}
                             />
+                            <input
+                              type="radio"
+                              {...register(`questions.${index}.correctAnswer`)}
+                              value={optIndex.toString()}
+                              className="w-5 h-5 text-indigo-600"
+                            />
+                            <span className="text-sm text-gray-600">Düzgün</span>
                           </div>
                         ))}
                       </div>
@@ -174,33 +182,11 @@ export default function QuestionEditor({
                           {errors.questions[index]?.options?.message}
                         </p>
                       )}
-
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Düzgün Cavab *
-                        </label>
-                        <select
-                          {...register(`questions.${index}.correctAnswer`)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
-                          style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                            backgroundSize: "14px 14px",
-                            backgroundPosition: "right 8px center",
-                          }}
-                        >
-                          <option value="">Seçin</option>
-                          {[0, 1, 2, 3].map((optIndex) => (
-                            <option key={optIndex} value={optIndex.toString()}>
-                              {String.fromCharCode(65 + optIndex)}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.questions?.[index]?.correctAnswer && (
-                          <p className="mt-1 text-sm text-red-600">
-                            {errors.questions[index]?.correctAnswer?.message}
-                          </p>
-                        )}
-                      </div>
+                      {errors.questions?.[index]?.correctAnswer && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.questions[index]?.correctAnswer?.message}
+                        </p>
+                      )}
                     </div>
                   )}
 

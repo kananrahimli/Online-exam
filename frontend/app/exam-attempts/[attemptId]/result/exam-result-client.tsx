@@ -86,7 +86,7 @@ export default function ExamResultClient({
     const groupedMap = new Map<string, any[]>();
     const ungrouped: any[] = [];
 
-    allQuestions.forEach((q) => {
+    allQuestions.forEach((q: any) => {
       if (q.readingTextId) {
         if (!groupedMap.has(q.readingTextId)) {
           groupedMap.set(q.readingTextId, []);
@@ -213,50 +213,62 @@ export default function ExamResultClient({
               const { grouped, ungrouped } = getGroupedQuestions();
               const allQuestions = getAllQuestions();
               const result: JSX.Element[] = [];
+              const shownReadingTexts = new Set<string>();
 
-              // Render grouped questions with reading texts
-              grouped.forEach((group) => {
-                const questionNumbers = group.questions.map((q: any) => {
-                  const idx = allQuestions.findIndex((aq: any) => aq.id === q.id);
-                  return idx + 1;
-                });
-
-                // Add reading text
-                if (group.readingText) {
-                  result.push(
-                    <ReadingTextSection
-                      key={`text-${group.readingText.id}`}
-                      readingText={group.readingText}
-                      questionNumbers={questionNumbers}
-                    />
-                  );
+              // Create a map of readingTextId -> group for quick lookup
+              // Use the readingTextId from the first question in each group as the key
+              const readingTextGroupsMap = new Map<string, any>();
+              grouped.forEach((group: any) => {
+                if (group.readingText?.id && group.questions.length > 0) {
+                  // Use the readingTextId from the first question as the key
+                  const readingTextId = group.questions[0]?.readingTextId;
+                  if (readingTextId) {
+                    readingTextGroupsMap.set(readingTextId, group);
+                  }
                 }
-
-                // Add questions for this reading text
-                group.questions.forEach((question: any) => {
-                  const index = allQuestions.findIndex(
-                    (q: any) => q.id === question.id
-                  );
-                  const answer = getAnswerForQuestion(question.id);
-                  const isCorrect = answer?.isCorrect || false;
-
-                  result.push(
-                    <QuestionResultItem
-                      key={question.id}
-                      question={question}
-                      index={index}
-                      answer={answer}
-                      isCorrect={isCorrect}
-                    />
-                  );
-                });
               });
 
-              // Render ungrouped questions
-              ungrouped.forEach((question: any) => {
+              // Combine all questions and sort by order
+              const allQuestionsSorted = [
+                ...ungrouped,
+                ...grouped.flatMap((group) => group.questions),
+              ].sort((a, b) => a.order - b.order);
+
+              // Render questions in order, showing reading text before first question of each group
+              allQuestionsSorted.forEach((question: any) => {
                 const index = allQuestions.findIndex(
                   (q: any) => q.id === question.id
                 );
+
+                // Check if this question belongs to a reading text
+                if (question.readingTextId) {
+                  const group = readingTextGroupsMap.get(
+                    question.readingTextId
+                  );
+
+                  // Show reading text before first question of this group
+                  if (
+                    group?.readingText &&
+                    !shownReadingTexts.has(question.readingTextId)
+                  ) {
+                    const questionNumbers = group.questions.map((q: any) => {
+                      const idx = allQuestions.findIndex(
+                        (aq: any) => aq.id === q.id
+                      );
+                      return idx + 1;
+                    });
+
+                    result.push(
+                      <ReadingTextSection
+                        key={`text-${question.readingTextId}`}
+                        readingText={group.readingText}
+                        questionNumbers={questionNumbers}
+                      />
+                    );
+                    shownReadingTexts.add(question.readingTextId);
+                  }
+                }
+
                 const answer = getAnswerForQuestion(question.id);
                 const isCorrect = answer?.isCorrect || false;
 

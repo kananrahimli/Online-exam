@@ -25,7 +25,10 @@ export default function LeaderboardSection({
   currentUserId,
   loading = false,
 }: LeaderboardSectionProps) {
-  if (!leaderboard || leaderboard.length === 0) return null;
+  // Ensure leaderboard is an array
+  const leaderboardArray = Array.isArray(leaderboard) ? leaderboard : [];
+
+  if (leaderboardArray.length === 0) return null;
 
   if (loading) {
     return (
@@ -43,7 +46,7 @@ export default function LeaderboardSection({
         Reytinq (Leaderboard)
       </h2>
       <div className="space-y-2">
-        {leaderboard.slice(0, 10).map((entry, index) => {
+        {leaderboardArray.slice(0, 10).map((entry, index) => {
           const isCurrentUser =
             entry.student?.id === currentUserId ||
             entry.studentId === currentUserId;

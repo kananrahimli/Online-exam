@@ -132,19 +132,15 @@ export default function CreateExamPage() {
 
   useEffect(() => {
     initialize();
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-  }, [token, router, initialize]);
+    // Don't check token here - let the form submission handle it
+    // This prevents premature redirects
+  }, [initialize]);
 
   const onSubmit = async (data: ExamFormData) => {
     setError("");
     setLoading(true);
 
     try {
-      console.log("Form data:", data);
-
       // Transform data to match backend expectations
       // Ensure duration is a number
       const durationNum =
@@ -185,11 +181,11 @@ export default function CreateExamPage() {
                 // Return question with readingTextId if provided
                 // readingTextId will be sent as is, backend will validate
                 // Convert empty string to undefined
-                const readingTextId = 
+                const readingTextId =
                   q.readingTextId && q.readingTextId.trim() !== ""
                     ? q.readingTextId
                     : undefined;
-                
+
                 return {
                   type: q.type,
                   content: q.content,
@@ -206,12 +202,40 @@ export default function CreateExamPage() {
             : [],
       };
 
-      console.log("Sending exam data:", examData);
       const response = await api.post(API_ENDPOINTS.EXAMS.LIST, examData);
-      console.log("Response:", response);
-      router.push(ROUTES.MY_EXAMS);
+
+      // Only redirect on success
+      if (response.data) {
+        // Redirect based on user role
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser?.role === "TEACHER") {
+          // Teachers should go to their exams list at /exams/my-exams
+          router.push("/exams/my-exams");
+        } else {
+          // Students go to my-exams
+          router.push(ROUTES.MY_EXAMS);
+        }
+      }
     } catch (err: any) {
-      console.error("Error creating exam:", err);
+      // Handle 401 Unauthorized - token expired or invalid
+      if (err.response?.status === 401) {
+        setError(
+          "Sessiya bitib və ya token etibarsızdır. Zəhmət olmasa yenidən giriş edin."
+        );
+        // Don't redirect immediately - let user see the error message
+        // They can manually go to login or we redirect after 5 seconds
+        setTimeout(() => {
+          // Only redirect if we're still on this page
+          if (
+            typeof window !== "undefined" &&
+            window.location.pathname.includes("/exams/create")
+          ) {
+            router.push(ROUTES.LOGIN);
+          }
+        }, 5000);
+        return;
+      }
+
       const errorMessage =
         err.response?.data?.message ||
         err.message ||
@@ -258,7 +282,6 @@ export default function CreateExamPage() {
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-gray-200">
           <form
             onSubmit={handleSubmit(onSubmit, (errors) => {
-              console.error("Validation errors:", errors);
               setError(
                 "Formda xətalar var. Zəhmət olmasa bütün tələb olunan sahələri doldurun."
               );

@@ -479,27 +479,41 @@ export default function TakeExamPage() {
                         )}
                       </div>
 
-                      {/* Questions in this topic - grouped by reading text */}
+                      {/* Questions in this topic - maintain order */}
                       {(() => {
                         const allQuestions = getAllQuestions();
                         const result: JSX.Element[] = [];
+                        const shownReadingTexts = new Set<string>();
 
-                        // First, show questions grouped by reading text
-                        groupedByText.forEach((questions, readingTextId) => {
-                          const readingText =
-                            readingTextsMap.get(readingTextId);
-                          const sortedQuestions = questions.sort(
-                            (a, b) => a.order - b.order
+                        // Combine all questions and sort by order
+                        const allTopicQuestions = [
+                          ...ungroupedQuestions,
+                          ...Array.from(groupedByText.values()).flat(),
+                        ].sort((a, b) => a.order - b.order);
+
+                        // Render questions in order, showing reading text before first question of each group
+                        allTopicQuestions.forEach((question) => {
+                          const globalIndex = allQuestions.findIndex(
+                            (q) => q.id === question.id
                           );
 
-                          sortedQuestions.forEach((question, qIndex) => {
-                            const globalIndex = allQuestions.findIndex(
-                              (q) => q.id === question.id
+                          // Check if this question belongs to a reading text
+                          if (question.readingTextId) {
+                            const readingText = readingTextsMap.get(
+                              question.readingTextId
                             );
 
-                            // Show reading text before first question
-                            if (qIndex === 0 && readingText) {
-                              const questionNumbers = sortedQuestions.map(
+                            // Show reading text before first question of this group
+                            if (
+                              readingText &&
+                              !shownReadingTexts.has(question.readingTextId)
+                            ) {
+                              const groupQuestions =
+                                groupedByText.get(question.readingTextId) || [];
+                              const sortedGroupQuestions = groupQuestions.sort(
+                                (a, b) => a.order - b.order
+                              );
+                              const questionNumbers = sortedGroupQuestions.map(
                                 (q) => {
                                   const idx = allQuestions.findIndex(
                                     (aq) => aq.id === q.id
@@ -510,31 +524,14 @@ export default function TakeExamPage() {
 
                               result.push(
                                 <ReadingTextSection
-                                  key={`text-${readingTextId}`}
+                                  key={`text-${question.readingTextId}`}
                                   readingText={readingText}
                                   questionNumbers={questionNumbers}
                                 />
                               );
+                              shownReadingTexts.add(question.readingTextId);
                             }
-
-                            result.push(
-                              <QuestionComponent
-                                key={question.id}
-                                question={question}
-                                globalIndex={globalIndex}
-                                answers={answers}
-                                handleAnswerChange={handleAnswerChange}
-                                topicPoints={topic.points}
-                              />
-                            );
-                          });
-                        });
-
-                        // Show ungrouped questions
-                        ungroupedQuestions.forEach((question) => {
-                          const globalIndex = allQuestions.findIndex(
-                            (q) => q.id === question.id
-                          );
+                          }
 
                           result.push(
                             <QuestionComponent
@@ -554,14 +551,40 @@ export default function TakeExamPage() {
                   );
                 })
               : (() => {
-                  // No topics - show questions grouped by reading text
+                  // No topics - show questions in order with reading texts
                   const { grouped, ungrouped } = getGroupedQuestions();
                   const allQuestions = getAllQuestions();
+                  const result: JSX.Element[] = [];
+                  const shownReadingTexts = new Set<string>();
 
-                  return (
-                    <>
-                      {/* Questions grouped by reading text */}
-                      {grouped.map((group) => {
+                  // Create a map of readingTextId -> group for quick lookup
+                  const readingTextGroupsMap = new Map(
+                    grouped.map((group) => [group.readingText?.id, group])
+                  );
+
+                  // Combine all questions and sort by order
+                  const allQuestionsSorted = [
+                    ...ungrouped,
+                    ...grouped.flatMap((group) => group.questions),
+                  ].sort((a, b) => a.order - b.order);
+
+                  // Render questions in order, showing reading text before first question of each group
+                  allQuestionsSorted.forEach((question) => {
+                    const globalIndex = allQuestions.findIndex(
+                      (q) => q.id === question.id
+                    );
+
+                    // Check if this question belongs to a reading text
+                    if (question.readingTextId) {
+                      const group = readingTextGroupsMap.get(
+                        question.readingTextId
+                      );
+
+                      // Show reading text before first question of this group
+                      if (
+                        group?.readingText &&
+                        !shownReadingTexts.has(question.readingTextId)
+                      ) {
                         const questionNumbers = group.questions.map((q) => {
                           const idx = allQuestions.findIndex(
                             (aq) => aq.id === q.id
@@ -569,55 +592,29 @@ export default function TakeExamPage() {
                           return idx + 1;
                         });
 
-                        return (
-                          <div
-                            key={group.readingText?.id}
-                            className="space-y-4"
-                          >
-                            {/* Reading Text */}
-                            {group.readingText && (
-                              <ReadingTextSection
-                                readingText={group.readingText}
-                                questionNumbers={questionNumbers}
-                              />
-                            )}
-
-                            {/* Questions for this reading text */}
-                            {group.questions.map((question) => {
-                              const globalIndex = allQuestions.findIndex(
-                                (q) => q.id === question.id
-                              );
-                              return (
-                                <QuestionComponent
-                                  key={question.id}
-                                  question={question}
-                                  globalIndex={globalIndex}
-                                  answers={answers}
-                                  handleAnswerChange={handleAnswerChange}
-                                />
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-
-                      {/* Questions without reading text */}
-                      {ungrouped.map((question) => {
-                        const globalIndex = allQuestions.findIndex(
-                          (q) => q.id === question.id
-                        );
-                        return (
-                          <QuestionComponent
-                            key={question.id}
-                            question={question}
-                            globalIndex={globalIndex}
-                            answers={answers}
-                            handleAnswerChange={handleAnswerChange}
+                        result.push(
+                          <ReadingTextSection
+                            key={`text-${question.readingTextId}`}
+                            readingText={group.readingText}
+                            questionNumbers={questionNumbers}
                           />
                         );
-                      })}
-                    </>
-                  );
+                        shownReadingTexts.add(question.readingTextId);
+                      }
+                    }
+
+                    result.push(
+                      <QuestionComponent
+                        key={question.id}
+                        question={question}
+                        globalIndex={globalIndex}
+                        answers={answers}
+                        handleAnswerChange={handleAnswerChange}
+                      />
+                    );
+                  });
+
+                  return <>{result}</>;
                 })()}
           </div>
 

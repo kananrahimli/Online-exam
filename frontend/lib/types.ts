@@ -63,6 +63,14 @@ export interface Exam {
   publishedAt?: string;
   topics?: ExamTopic[];
   questions?: Question[];
+  readingTexts?: ReadingText[];
+}
+
+export interface ReadingText {
+  id: string;
+  examId: string;
+  content: string;
+  order: number;
 }
 
 export interface ExamTopic {

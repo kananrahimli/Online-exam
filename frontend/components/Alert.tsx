@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { ALERT_CONFIG, ALERT_STYLES } from "@/lib/constants/alert";
 
 interface AlertProps {
   message: string;
@@ -16,17 +17,17 @@ export default function Alert({
   message,
   type = "info",
   onClose,
-  confirmButtonText = "OK",
-  cancelButtonText = "Ləğv et",
+  confirmButtonText = ALERT_CONFIG.DEFAULT_CONFIRM_TEXT,
+  cancelButtonText = ALERT_CONFIG.DEFAULT_CANCEL_TEXT,
   showCancel = false,
   onConfirm,
 }: AlertProps) {
   useEffect(() => {
-    // Auto close after 5 seconds for non-confirm alerts
+    // Auto close after configured delay for non-confirm alerts
     if (!showCancel) {
       const timer = setTimeout(() => {
         onClose();
-      }, 5000);
+      }, ALERT_CONFIG.AUTO_CLOSE_DELAY);
       return () => clearTimeout(timer);
     }
   }, [showCancel, onClose]);
@@ -38,38 +39,7 @@ export default function Alert({
     onClose();
   };
 
-  const typeStyles = {
-    success: {
-      bg: "bg-green-50",
-      border: "border-green-200",
-      text: "text-green-800",
-      icon: "✓",
-      button: "bg-green-600 hover:bg-green-700",
-    },
-    error: {
-      bg: "bg-red-50",
-      border: "border-red-200",
-      text: "text-red-800",
-      icon: "✗",
-      button: "bg-red-600 hover:bg-red-700",
-    },
-    warning: {
-      bg: "bg-yellow-50",
-      border: "border-yellow-200",
-      text: "text-yellow-800",
-      icon: "⚠",
-      button: "bg-yellow-600 hover:bg-yellow-700",
-    },
-    info: {
-      bg: "bg-blue-50",
-      border: "border-blue-200",
-      text: "text-blue-800",
-      icon: "ℹ",
-      button: "bg-blue-600 hover:bg-blue-700",
-    },
-  };
-
-  const style = typeStyles[type];
+  const style = ALERT_STYLES[type];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">

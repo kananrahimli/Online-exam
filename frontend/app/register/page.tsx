@@ -9,20 +9,22 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { UserRole } from "@/lib/types";
 import TeacherMultiSelect from "@/components/TeacherMultiSelect";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ERROR_MESSAGES, VALIDATION_MESSAGES } from "@/lib/constants/messages";
 
 const registerSchema = z.object({
-  email: z.string().email("Düzgün email ünvanı daxil edin"),
+  email: z.string().email(ERROR_MESSAGES.INVALID_EMAIL),
   phone: z
     .string()
     .regex(
       /^\+?[1-9]\d{1,14}$/,
-      "Düzgün telefon nömrəsi daxil edin (məs: +994501234567)"
+      ERROR_MESSAGES.INVALID_PHONE
     )
     .optional()
     .or(z.literal("")),
-  password: z.string().min(6, "Şifrə minimum 6 simvoldan ibarət olmalıdır"),
-  firstName: z.string().min(2, "Ad minimum 2 simvoldan ibarət olmalıdır"),
-  lastName: z.string().min(2, "Soyad minimum 2 simvoldan ibarət olmalıdır"),
+  password: z.string().min(6, ERROR_MESSAGES.PASSWORD_MIN_LENGTH),
+  firstName: z.string().min(2, ERROR_MESSAGES.NAME_MIN_LENGTH),
+  lastName: z.string().min(2, ERROR_MESSAGES.NAME_MIN_LENGTH),
   role: z.nativeEnum(UserRole).default(UserRole.STUDENT),
   teacherIds: z.array(z.string()).optional(),
 });
@@ -65,7 +67,7 @@ export default function RegisterPage() {
         teacherIds:
           data.role === UserRole.STUDENT ? selectedTeachers : undefined,
       };
-      const response = await api.post("/auth/register", registerData);
+      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, registerData);
       setToken(response.data.token);
       setUser(response.data.user);
       // Save to localStorage and cookies
@@ -78,10 +80,10 @@ export default function RegisterPage() {
           JSON.stringify(response.data.user)
         )}; path=/; max-age=86400; SameSite=Lax`;
       }
-      router.push("/dashboard");
+      router.push(ROUTES.DASHBOARD);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Qeydiyyat zamanı xəta baş verdi"
+        err.response?.data?.message || ERROR_MESSAGES.GENERIC
       );
     } finally {
       setLoading(false);
@@ -285,7 +287,7 @@ export default function RegisterPage() {
 
             <div className="text-center">
               <a
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
               >
                 Artıq hesabınız var? Daxil olun

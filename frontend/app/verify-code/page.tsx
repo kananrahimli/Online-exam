@@ -7,13 +7,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import api from "@/lib/api";
 import Link from "next/link";
+import { formatTimeMMSS } from "@/lib/utils";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ERROR_MESSAGES, VALIDATION_MESSAGES } from "@/lib/constants/messages";
 
 const verifyCodeSchema = z.object({
   code: z
     .string()
-    .min(6, "Kod 6 rəqəmdən ibarət olmalıdır")
-    .max(6, "Kod 6 rəqəmdən ibarət olmalıdır")
-    .regex(/^\d+$/, "Kod yalnız rəqəmlərdən ibarət olmalıdır"),
+    .min(6, VALIDATION_MESSAGES.CODE_LENGTH)
+    .max(6, VALIDATION_MESSAGES.CODE_LENGTH)
+    .regex(/^\d+$/, ERROR_MESSAGES.CODE_NUMERIC),
 });
 
 type VerifyCodeFormData = z.infer<typeof verifyCodeSchema>;
@@ -58,16 +61,10 @@ export default function VerifyCodePage() {
     };
   }, [timeLeft]);
 
-  // Format time as MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
 
   const sendVerificationCode = async () => {
     if (!email) {
-      setError("Email tapılmadı");
+      setError(ERROR_MESSAGES.NOT_FOUND);
       return;
     }
 
@@ -75,14 +72,14 @@ export default function VerifyCodePage() {
     setLoading(true);
 
     try {
-      await api.post("/auth/forgot-password", {
+      await api.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, {
         email: email.trim(),
       });
       setTimeLeft(120); // Reset timer to 2 minutes
       setCanResend(false);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Kod göndərilərkən xəta baş verdi"
+        err.response?.data?.message || ERROR_MESSAGES.GENERIC
       );
     } finally {
       setLoading(false);
@@ -91,7 +88,7 @@ export default function VerifyCodePage() {
 
   const onSubmit = async (data: VerifyCodeFormData) => {
     if (!email) {
-      setError("Email tapılmadı");
+      setError(ERROR_MESSAGES.NOT_FOUND);
       return;
     }
 
@@ -99,18 +96,18 @@ export default function VerifyCodePage() {
     setLoading(true);
 
     try {
-      const response = await api.post("/auth/verify-code", {
+      const response = await api.post(API_ENDPOINTS.AUTH.VERIFY_CODE, {
         email: email.trim(),
         code: data.code,
       });
 
       // Redirect to reset password page with token
       router.push(
-        `/reset-password?token=${response.data.resetToken}&email=${encodeURIComponent(email)}`
+        `${ROUTES.RESET_PASSWORD}?token=${response.data.resetToken}&email=${encodeURIComponent(email)}`
       );
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Kod doğrulanarkən xəta baş verdi"
+        err.response?.data?.message || ERROR_MESSAGES.GENERIC
       );
     } finally {
       setLoading(false);
@@ -130,7 +127,7 @@ export default function VerifyCodePage() {
                 Verifikasiya səhifəsinə düzgün yönləndirilməmisiniz.
               </p>
               <Link
-                href="/forgot-password"
+                href={ROUTES.FORGOT_PASSWORD}
                 className="text-indigo-600 hover:text-indigo-800 font-semibold"
               >
                 Şifrə bərpası səhifəsinə qayıt
@@ -176,7 +173,7 @@ export default function VerifyCodePage() {
                 </label>
                 {!canResend && timeLeft > 0 && (
                   <span className="text-sm text-gray-500">
-                    Yenidən göndər: {formatTime(timeLeft)}
+                    Yenidən göndər: {formatTimeMMSS(timeLeft)}
                   </span>
                 )}
                 {canResend && (
@@ -217,13 +214,13 @@ export default function VerifyCodePage() {
 
             <div className="text-center space-y-2">
               <Link
-                href="/forgot-password"
+                href={ROUTES.FORGOT_PASSWORD}
                 className="block text-sm text-indigo-600 hover:text-indigo-800"
               >
                 Geri
               </Link>
               <Link
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="block text-sm text-gray-600 hover:text-gray-800"
               >
                 Giriş səhifəsinə qayıt

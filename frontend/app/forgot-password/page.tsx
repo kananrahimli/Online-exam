@@ -7,9 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import api from "@/lib/api";
 import Link from "next/link";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ERROR_MESSAGES } from "@/lib/constants/messages";
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email("Düzgün email ünvanı daxil edin"),
+  email: z.string().email(ERROR_MESSAGES.INVALID_EMAIL),
 });
 
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
@@ -37,7 +39,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const response = await api.post("/auth/forgot-password", {
+      const response = await api.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, {
         email: data.email.trim(),
       });
       setSuccess(response.data.message);
@@ -45,11 +47,11 @@ export default function ForgotPasswordPage() {
       // Redirect to verify-code page
       setTimeout(() => {
         router.push(
-          `/verify-code?email=${encodeURIComponent(data.email.trim())}`
+          `${ROUTES.VERIFY_CODE}?email=${encodeURIComponent(data.email.trim())}`
         );
       }, 1000);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Xəta baş verdi");
+      setError(err.response?.data?.message || ERROR_MESSAGES.GENERIC);
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ export default function ForgotPasswordPage() {
 
             <div className="text-center">
               <Link
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="text-sm text-indigo-600 hover:text-indigo-800"
               >
                 Giriş səhifəsinə qayıt

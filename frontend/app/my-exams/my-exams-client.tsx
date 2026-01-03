@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
+import { formatDate, formatTime } from "@/lib/utils";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 
 interface ExamAttemptWithExam {
   id: string;
@@ -199,24 +201,14 @@ export default function MyExamsClient({
                           className="text-sm font-semibold text-gray-900"
                           suppressHydrationWarning
                         >
-                          {attempt.startedAt
-                            ? new Date(attempt.startedAt).toLocaleDateString(
-                                "az-AZ"
-                              )
-                            : "-"}
+                          {attempt.startedAt ? formatDate(attempt.startedAt) : "-"}
                         </p>
                         {attempt.startedAt && (
                           <p
                             className="text-xs text-gray-500"
                             suppressHydrationWarning
                           >
-                            {new Date(attempt.startedAt).toLocaleTimeString(
-                              "az-AZ",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}
+                            {formatTime(attempt.startedAt)}
                           </p>
                         )}
                       </div>

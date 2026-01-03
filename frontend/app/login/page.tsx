@@ -8,10 +8,12 @@ import * as z from "zod";
 import Link from "next/link";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ERROR_MESSAGES, VALIDATION_MESSAGES } from "@/lib/constants/messages";
 
 const loginSchema = z.object({
-  email: z.string().email("Düzgün email ünvanı daxil edin"),
-  password: z.string().min(6, "Şifrə minimum 6 simvoldan ibarət olmalıdır"),
+  email: z.string().email(ERROR_MESSAGES.INVALID_EMAIL),
+  password: z.string().min(6, ERROR_MESSAGES.PASSWORD_MIN_LENGTH),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -35,7 +37,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await api.post("/auth/login", data);
+      const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, data);
       setToken(response.data.token);
       setUser(response.data.user);
       // Save to localStorage and cookies
@@ -48,9 +50,9 @@ export default function LoginPage() {
           JSON.stringify(response.data.user)
         )}; path=/; max-age=86400; SameSite=Lax`;
       }
-      router.push("/dashboard");
+      router.push(ROUTES.DASHBOARD);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Giriş zamanı xəta baş verdi");
+      setError(err.response?.data?.message || ERROR_MESSAGES.GENERIC);
     } finally {
       setLoading(false);
     }
@@ -156,13 +158,13 @@ export default function LoginPage() {
 
             <div className="text-center flex flex-col gap-2">
               <Link
-                href="/register"
+                href={ROUTES.REGISTER}
                 className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
               >
                 Hesabınız yoxdur? Qeydiyyatdan keçin
               </Link>
               <Link
-                href="/forgot-password"
+                href={ROUTES.FORGOT_PASSWORD}
                 className="text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
               >
                 Şifrəni unutmusunuz?

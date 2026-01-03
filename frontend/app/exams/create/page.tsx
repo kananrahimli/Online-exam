@@ -9,6 +9,9 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { QuestionType } from "@/lib/types";
+import ReadingTextEditor from "@/components/exam/ReadingTextEditor";
+import QuestionEditor from "@/components/exam/QuestionEditor";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 
 const examSchema = z.object({
   title: z.string().min(3, "Başlıq minimum 3 simvoldan ibarət olmalıdır"),
@@ -204,9 +207,9 @@ export default function CreateExamPage() {
       };
 
       console.log("Sending exam data:", examData);
-      const response = await api.post("/exams", examData);
+      const response = await api.post(API_ENDPOINTS.EXAMS.LIST, examData);
       console.log("Response:", response);
-      router.push(`/exams/my-exams`);
+      router.push(ROUTES.MY_EXAMS);
     } catch (err: any) {
       console.error("Error creating exam:", err);
       const errorMessage =
@@ -237,7 +240,7 @@ export default function CreateExamPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <Link
-            href="/dashboard"
+            href={ROUTES.DASHBOARD}
             aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
@@ -384,270 +387,29 @@ export default function CreateExamPage() {
               />
             </div>
 
-            {/* Reading Texts Section */}
-            <div className="border-t pt-6">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Mətnlər</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Əgər mətn əsasında həll edilməli suallarınız varsa, əvvəlcə
-                    mətn əlavə edin, sonra sualları bu mətnə bağlayın
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => appendReadingText({ content: "" })}
-                  className="px-5 py-2 bg-indigo-600 whitespace-nowrap text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
-                >
-                  + Mətn Əlavə Et
-                </button>
-              </div>
+            <ReadingTextEditor
+              fields={readingTextFields}
+              register={register}
+              errors={errors}
+              onAppend={() => appendReadingText({ content: "" })}
+              onRemove={removeReadingText}
+            />
 
-              {readingTextFields.length === 0 ? (
-                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
-                  <p>Hələ heç bir mətn əlavə edilməyib</p>
-                  <p className="text-sm mt-2">
-                    Yuxarıdakı düyməyə klik edərək mətn əlavə edin
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {readingTextFields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="border border-gray-200 rounded-lg p-4 bg-blue-50"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-semibold text-gray-900">
-                          Mətn {index + 1}
-                        </h4>
-                        <button
-                          type="button"
-                          onClick={() => removeReadingText(index)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Sil
-                        </button>
-                      </div>
-                      <textarea
-                        {...register(`readingTexts.${index}.content`)}
-                        rows={6}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                        placeholder="Mətnin məzmununu buraya yazın..."
-                      />
-                      {errors.readingTexts?.[index]?.content && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {errors.readingTexts[index]?.content?.message}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Questions Section */}
-            <div className="border-t pt-6">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Suallar</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    İmtahan suallarını əlavə edin
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={addQuestion}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
-                >
-                  + Sual Əlavə Et
-                </button>
-              </div>
-
-              {questionFields.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Hələ heç bir sual əlavə edilməyib</p>
-                  <p className="text-sm mt-2">
-                    Yuxarıdakı düyməyə klik edərək sual əlavə edin
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {questionFields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="border border-gray-200 rounded-lg p-6 bg-gray-50"
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <h4 className="font-semibold text-gray-900">
-                          Sual {index + 1}
-                        </h4>
-                        <button
-                          type="button"
-                          onClick={() => removeQuestion(index)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Sil
-                        </button>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sual Tipi
-                          </label>
-                          <select
-                            {...register(`questions.${index}.type`)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                              backgroundSize: "14px 14px",
-                              backgroundPosition: "right 8px center",
-                            }}
-                          >
-                            <option value={QuestionType.MULTIPLE_CHOICE}>
-                              Test sualı
-                            </option>
-                            <option value={QuestionType.OPEN_ENDED}>
-                              Açıq sual
-                            </option>
-                          </select>
-                        </div>
-
-                        {readingTextFields.length > 0 && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Mətnə Bağla (İstəyə görə)
-                            </label>
-                            <select
-                              {...register(`questions.${index}.readingTextId`)}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
-                              style={{
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                                backgroundSize: "14px 14px",
-                                backgroundPosition: "right 8px center",
-                              }}
-                            >
-                              <option value="">Mətnə bağlamayın</option>
-                              {readingTextFields.map((rt, rtIndex) => {
-                                const rtContent =
-                                  watch(`readingTexts.${rtIndex}.content`) ||
-                                  "";
-                                const preview =
-                                  rtContent.length > 50
-                                    ? rtContent.substring(0, 50) + "..."
-                                    : rtContent || `Mətn ${rtIndex + 1}`;
-                                return (
-                                  <option key={rt.id} value={`temp_${rtIndex}`}>
-                                    Mətn {rtIndex + 1}: {preview}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                            <p className="mt-1 text-xs text-gray-500">
-                              Bu sualı yuxarıda əlavə etdiyiniz mətnlərdən
-                              birinə bağlayın
-                            </p>
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sual Mətni *
-                          </label>
-                          <textarea
-                            {...register(`questions.${index}.content`)}
-                            rows={3}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                            placeholder="Sualı yazın..."
-                          />
-                          {errors.questions?.[index]?.content && (
-                            <p className="mt-1 text-sm text-red-600">
-                              {errors.questions[index]?.content?.message}
-                            </p>
-                          )}
-                        </div>
-
-                        {watch(`questions.${index}.type`) ===
-                          QuestionType.MULTIPLE_CHOICE && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Variantlar *
-                            </label>
-                            <div className="space-y-2">
-                              {[0, 1, 2, 3].map((optIndex) => (
-                                <div
-                                  key={optIndex}
-                                  className="flex items-center space-x-2"
-                                >
-                                  <input
-                                    {...register(
-                                      `questions.${index}.options.${optIndex}.content`
-                                    )}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                                    placeholder={`Variant ${String.fromCharCode(
-                                      65 + optIndex
-                                    )}`}
-                                  />
-                                  <input
-                                    type="radio"
-                                    {...register(
-                                      `questions.${index}.correctAnswer`
-                                    )}
-                                    value={optIndex.toString()}
-                                    className="w-5 h-5 text-indigo-600"
-                                  />
-                                  <span className="text-sm text-gray-600">
-                                    Düzgün
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {watch(`questions.${index}.type`) ===
-                          QuestionType.OPEN_ENDED && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Nümunə Cavab (Model Answer) *
-                            </label>
-                            <textarea
-                              {...register(`questions.${index}.modelAnswer`)}
-                              rows={4}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                              placeholder="Açıq sual üçün nümunə/ideal cavabı yazın. Şagird imtahan bitdikdən sonra bu cavabı görəcək."
-                            />
-                            {errors.questions?.[index]?.modelAnswer && (
-                              <p className="mt-1 text-sm text-red-600">
-                                {errors.questions[index]?.modelAnswer?.message}
-                              </p>
-                            )}
-                            <div className="mt-2 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
-                              <p className="text-xs text-blue-800 font-medium mb-1">
-                                💡 İpucu:
-                              </p>
-                              <p className="text-xs text-blue-700">
-                                Nümunə cavab nə qədər konkret və ətraflı olsa,
-                                şagirdlərin düzgün cavabları səhv qəbul edilmə
-                                ehtimalı bir o qədər azalır. Məsələn,
-                                &ldquo;Cümlə üzvü&rdquo; əvəzinə &ldquo;Bu cümlə
-                                üzvüdür&rdquo; və ya &ldquo;Cümlə üzvü
-                                növdür&rdquo; kimi daha spesifik cavablar yazın.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <QuestionEditor
+              fields={questionFields}
+              register={register}
+              errors={errors}
+              watch={watch}
+              readingTextFields={readingTextFields.map((rt, rtIndex) => ({
+                id: rt.id || `temp_${rtIndex}`,
+              }))}
+              onAppend={addQuestion}
+              onRemove={removeQuestion}
+            />
 
             <div className="flex justify-end space-x-4 pt-6 border-t">
               <Link
-                href="/dashboard"
+                href={ROUTES.DASHBOARD}
                 className="px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-all"
               >
                 Ləğv et

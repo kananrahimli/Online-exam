@@ -6,6 +6,10 @@ import { useAuthStore } from "@/stores/authStore";
 import api from "@/lib/api";
 import { Exam, Question, QuestionType } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
+import { formatTimeDuration } from "@/lib/utils";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import TimerSection from "@/components/exam/TimerSection";
+import ReadingTextSection from "@/components/exam/ReadingTextSection";
 
 // Question Component
 function QuestionComponent({
@@ -139,8 +143,12 @@ export default function TakeExamPage() {
   }, [token, attemptId]);
 
   const fetchAttempt = async () => {
+    if (!attemptId) return;
+
     try {
-      const response = await api.get(`/exam-attempts/${attemptId}`);
+      const response = await api.get(
+        API_ENDPOINTS.EXAM_ATTEMPTS.DETAIL(attemptId)
+      );
       const attempt = response.data;
 
       if (!attempt || !attempt.exam) {
@@ -149,7 +157,7 @@ export default function TakeExamPage() {
 
       // Check if exam is already completed
       if (attempt.status === "COMPLETED") {
-        router.push(`/exam-attempts/${attemptId}/result`);
+        router.push(ROUTES.EXAM_RESULT(attemptId));
         return;
       }
 
@@ -240,19 +248,6 @@ export default function TakeExamPage() {
     }, 1500);
   };
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
-        .toString()
-        .padStart(2, "0")}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
-
   const handleVisibilityChange = () => {
     if (document.hidden) {
       setTabChangeCount((prev) => {
@@ -281,6 +276,8 @@ export default function TakeExamPage() {
   };
 
   const handleAnswerChange = async (questionId: string, value: string) => {
+    if (!attemptId) return;
+
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
 
     // Auto-save answer
@@ -289,12 +286,12 @@ export default function TakeExamPage() {
       if (!question) return;
 
       if (question.type === QuestionType.MULTIPLE_CHOICE) {
-        await api.put(`/exam-attempts/${attemptId}/answers`, {
+        await api.put(API_ENDPOINTS.EXAM_ATTEMPTS.UPDATE_ANSWERS(attemptId), {
           questionId,
           optionId: value,
         });
       } else {
-        await api.put(`/exam-attempts/${attemptId}/answers`, {
+        await api.put(API_ENDPOINTS.EXAM_ATTEMPTS.UPDATE_ANSWERS(attemptId), {
           questionId,
           content: value,
         });
@@ -367,13 +364,15 @@ export default function TakeExamPage() {
   };
 
   const submitExam = async () => {
+    if (!attemptId) return;
+
     setSubmitting(true);
     try {
-      await api.post(`/exam-attempts/${attemptId}/submit`);
+      await api.post(API_ENDPOINTS.EXAM_ATTEMPTS.SUBMIT(attemptId));
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      router.push(`/exam-attempts/${attemptId}/result`);
+      router.push(ROUTES.EXAM_RESULT(attemptId));
     } catch (err: any) {
       console.error("Error submitting exam:", err);
       showAlert({
@@ -427,49 +426,15 @@ export default function TakeExamPage() {
     <>
       <AlertComponent />
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        {/* Fixed Header with Timer */}
-        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-lg border-b border-gray-200 shadow-md">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {exam.title}
-                </h1>
-                <p className="text-sm text-gray-600">
-                  {answeredCount} / {questions.length} sual cavablandırılıb
-                </p>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div
-                  className={`px-6 py-3 rounded-lg font-bold text-lg ${
-                    timeRemaining < 300
-                      ? "bg-red-100 text-red-700 animate-pulse"
-                      : timeRemaining < 600
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-green-100 text-green-700"
-                  }`}
-                >
-                  ⏱️ {formatTime(timeRemaining)}
-                </div>
-
-                {tabChangeCount > 0 && (
-                  <div className="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-semibold">
-                    ⚠️ Tab dəyişikliyi: {tabChangeCount}
-                  </div>
-                )}
-
-                <button
-                  onClick={() => handleSubmit()}
-                  disabled={submitting}
-                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {submitting ? "Təqdim olunur..." : "İmtahanı bitir"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TimerSection
+          examTitle={exam.title}
+          answeredCount={answeredCount}
+          totalQuestions={questions.length}
+          timeRemaining={timeRemaining}
+          tabChangeCount={tabChangeCount}
+          submitting={submitting}
+          onSubmit={handleSubmit}
+        />
 
         {/* Exam Content */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -544,45 +509,11 @@ export default function TakeExamPage() {
                               );
 
                               result.push(
-                                <div
+                                <ReadingTextSection
                                   key={`text-${readingTextId}`}
-                                  className="bg-blue-50 rounded-lg border border-blue-200 p-6 shadow-sm"
-                                >
-                                  {/* Hint Header */}
-                                  <div className="flex items-center gap-2 mb-4">
-                                    <svg
-                                      className="w-5 h-5 text-blue-600"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                    </svg>
-                                    <span className="text-blue-700 font-semibold text-base">
-                                      İpucu:
-                                    </span>
-                                  </div>
-
-                                  {/* Text Content */}
-                                  <div className="bg-white rounded-lg p-4 mb-4 border border-blue-100">
-                                    <p className="text-gray-800 leading-7 text-base whitespace-pre-wrap">
-                                      {readingText.content}
-                                    </p>
-                                  </div>
-
-                                  {/* Questions Info */}
-                                  <div className="bg-blue-100 rounded-lg p-3 border border-blue-200">
-                                    <p className="text-sm font-semibold text-blue-900 mb-2">
-                                      Bu mətn əsasında həll edilməli olan
-                                      suallar:
-                                    </p>
-                                    <p className="text-sm text-blue-800">
-                                      {questionNumbers
-                                        .map((num) => `Sual ${num}`)
-                                        .join(", ")}
-                                    </p>
-                                  </div>
-                                </div>
+                                  readingText={readingText}
+                                  questionNumbers={questionNumbers}
+                                />
                               );
                             }
 
@@ -645,37 +576,10 @@ export default function TakeExamPage() {
                           >
                             {/* Reading Text */}
                             {group.readingText && (
-                              <div className="bg-blue-100 rounded-lg border border-blue-200 p-6 shadow-sm">
-                                {/* Text Content */}
-                                <p className="text-blue-900 leading-7 text-base whitespace-pre-wrap">
-                                  {group.readingText.content}
-                                </p>
-
-                                {/* Questions Info */}
-                                <div className="mt-4">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <svg
-                                      className="w-5 h-5 text-blue-600"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                    </svg>
-                                    <span className="text-blue-700 font-semibold text-base">
-                                      İpucu:
-                                    </span>
-                                  </div>
-                                  <p className="text-sm font-semibold text-blue-900 mb-1">
-                                    Bu mətn əsasında həll edilməli olan suallar:
-                                  </p>
-                                  <p className="text-sm text-blue-800">
-                                    {questionNumbers
-                                      .map((num) => `Sual ${num}`)
-                                      .join(", ")}
-                                  </p>
-                                </div>
-                              </div>
+                              <ReadingTextSection
+                                readingText={group.readingText}
+                                questionNumbers={questionNumbers}
+                              />
                             )}
 
                             {/* Questions for this reading text */}

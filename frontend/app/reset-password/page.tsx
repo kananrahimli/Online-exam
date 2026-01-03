@@ -7,12 +7,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import api from "@/lib/api";
 import Link from "next/link";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ERROR_MESSAGES } from "@/lib/constants/messages";
 
 const resetPasswordSchema = z
   .object({
     newPassword: z
       .string()
-      .min(6, "Şifrə ən azı 6 simvoldan ibarət olmalıdır"),
+      .min(6, ERROR_MESSAGES.PASSWORD_MIN_LENGTH),
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -42,7 +44,7 @@ export default function ResetPasswordPage() {
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!email) {
-      setError("Email tapılmadı");
+      setError(ERROR_MESSAGES.NOT_FOUND);
       return;
     }
 
@@ -56,7 +58,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      await api.post("/auth/reset-password", {
+      await api.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
         email: email.trim(),
         newPassword: data.newPassword,
         resetToken: token,
@@ -64,11 +66,11 @@ export default function ResetPasswordPage() {
 
       setSuccess("Şifrə uğurla dəyişdirildi! Giriş səhifəsinə yönləndirilirsiniz...");
       setTimeout(() => {
-        router.push("/login");
+        router.push(ROUTES.LOGIN);
       }, 2000);
     } catch (err: any) {
       setError(
-        err.response?.data?.message || "Şifrə dəyişdirilərkən xəta baş verdi"
+        err.response?.data?.message || ERROR_MESSAGES.GENERIC
       );
     } finally {
       setLoading(false);
@@ -88,7 +90,7 @@ export default function ResetPasswordPage() {
                 Şifrə bərpa səhifəsinə düzgün yönləndirilməmisiniz.
               </p>
               <Link
-                href="/forgot-password"
+                href={ROUTES.FORGOT_PASSWORD}
                 className="text-indigo-600 hover:text-indigo-800 font-semibold"
               >
                 Şifrə bərpası səhifəsinə qayıt
@@ -181,7 +183,7 @@ export default function ResetPasswordPage() {
 
             <div className="text-center">
               <Link
-                href="/login"
+                href={ROUTES.LOGIN}
                 className="text-sm text-gray-600 hover:text-gray-800"
               >
                 Giriş səhifəsinə qayıt

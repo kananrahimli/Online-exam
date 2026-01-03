@@ -7,6 +7,10 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { useAlert } from "@/hooks/useAlert";
 import { QuestionType } from "@/lib/types";
+import SummaryStats from "@/components/analytics/SummaryStats";
+import ExamStatsTable from "@/components/analytics/ExamStatsTable";
+import ExamDetailModal from "@/components/analytics/ExamDetailModal";
+import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 
 interface ExamStats {
   examId: string;
@@ -127,7 +131,9 @@ export default function AnalyticsClient({
   const fetchExamDetail = async (examId: string) => {
     setLoadingDetail(true);
     try {
-      const response = await api.get(`/analytics/exam/${examId}`);
+      const response = await api.get(
+        API_ENDPOINTS.ANALYTICS.EXAM_STATS(examId)
+      );
       setExamDetail(response.data);
       setSelectedExamId(examId);
     } catch (err: any) {
@@ -159,7 +165,9 @@ export default function AnalyticsClient({
       });
       // Refresh exam detail
       if (selectedExamId) {
-        const response = await api.get(`/analytics/exam/${selectedExamId}`);
+        const response = await api.get(
+          API_ENDPOINTS.ANALYTICS.EXAM_STATS(selectedExamId)
+        );
         setExamDetail(response.data);
         // Update selected student attempt if modal is open
         if (selectedStudentAttempt) {
@@ -192,7 +200,7 @@ export default function AnalyticsClient({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <Link
-            href="/dashboard"
+            href={ROUTES.DASHBOARD}
             aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
@@ -211,7 +219,7 @@ export default function AnalyticsClient({
               Hələ statistika yoxdur. İmtahan yaradıb yayımlayın.
             </p>
             <Link
-              href="/exams/create"
+              href={ROUTES.EXAMS + "/create"}
               aria-label="Yeni imtahan yarat"
               className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >
@@ -220,285 +228,28 @@ export default function AnalyticsClient({
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Ümumi İmtahan</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {stats.length}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span
-                      className="text-2xl"
-                      role="img"
-                      aria-label="Statistika"
-                    >
-                      📊
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Ümumi Cəhd</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {stats.reduce((sum, s) => sum + s.totalAttempts, 0)}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl" role="img" aria-label="İmtahan">
-                      📝
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Orta Bal</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {stats.length > 0
-                        ? (
-                            stats.reduce((sum, s) => sum + s.averageScore, 0) /
-                            stats.length
-                          ).toFixed(1)
-                        : "0"}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl" role="img" aria-label="Ulduz">
-                      ⭐
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Şagird Sayı</p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {summaryData?.totalStudents || 0}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <span
-                      className="text-2xl"
-                      role="img"
-                      aria-label="İstifadəçilər"
-                    >
-                      👥
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Exam Statistics Table */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-gray-900">
-                  İmtahan Statistikaları
-                </h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        İmtahan
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tarix
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cəhd Sayı
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Orta Bal
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tamamlanma
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Əməliyyat
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {stats.map((stat) => (
-                      <tr key={stat.examId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {stat.examTitle}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {stat.createdAt || "-"}
-                          </div>
-                          {stat.createdAtTime && (
-                            <div className="text-xs text-gray-500">
-                              {stat.createdAtTime}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {stat.totalAttempts}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {stat.averageScore > 0
-                              ? `${stat.averageScore.toFixed(1)}%`
-                              : "-"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {stat.completionRate > 0
-                              ? `${(stat.completionRate * 100).toFixed(1)}%`
-                              : "-"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => fetchExamDetail(stat.examId)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Detallı gör
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <SummaryStats
+              totalExams={stats.length}
+              totalAttempts={stats.reduce((sum, s) => sum + s.totalAttempts, 0)}
+              averageScore={
+                stats.length > 0
+                  ? stats.reduce((sum, s) => sum + s.averageScore, 0) /
+                    stats.length
+                  : 0
+              }
+              totalStudents={summaryData?.totalStudents || 0}
+            />
+            <ExamStatsTable stats={stats} onViewDetail={fetchExamDetail} />
           </div>
         )}
 
-        {/* Exam Detail Modal */}
         {examDetail && selectedExamId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {examDetail.examTitle}
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {examDetail.totalAttempts} cəhd • Orta bal:{" "}
-                    {examDetail.averageScore.toFixed(1)}%
-                  </p>
-                </div>
-                <button
-                  onClick={closeDetail}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                {loadingDetail ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {examDetail.attempts.map((attempt) => (
-                      <div
-                        key={attempt.id}
-                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer hover:bg-gray-50"
-                        onClick={() => setSelectedStudentAttempt(attempt)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">
-                                {attempt.student.firstName}{" "}
-                                {attempt.student.lastName}
-                              </h3>
-                              {attempt.position > 0 &&
-                                attempt.position <= 3 && (
-                                  <span className="text-2xl">
-                                    <span
-                                      role="img"
-                                      aria-label={`${
-                                        attempt.position === 1
-                                          ? "Birinci"
-                                          : attempt.position === 2
-                                          ? "İkinci"
-                                          : "Üçüncü"
-                                      } yer medalı`}
-                                    >
-                                      {attempt.position === 1
-                                        ? "🥇"
-                                        : attempt.position === 2
-                                        ? "🥈"
-                                        : "🥉"}
-                                    </span>
-                                  </span>
-                                )}
-                              {attempt.position > 0 && (
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                  #{attempt.position}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {attempt.student.email}
-                            </p>
-                            {attempt.prizeAmount > 0 && (
-                              <div className="mt-1 flex items-center gap-1">
-                                <span className="text-sm font-semibold text-green-600">
-                                  +{attempt.prizeAmount.toFixed(2)} AZN mükafat
-                                </span>
-                                <span
-                                  className="text-xs"
-                                  role="img"
-                                  aria-label="Pul"
-                                >
-                                  💰
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-gray-900">
-                              {attempt.score !== null &&
-                              attempt.totalScore !== null
-                                ? `${attempt.score}/${attempt.totalScore}`
-                                : "-"}
-                            </div>
-                            {attempt.percentage && (
-                              <div className="text-sm text-gray-600">
-                                {attempt.percentage}%
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {examDetail.attempts.length === 0 && (
-                      <div className="text-center py-12 text-gray-500">
-                        Hələ heç bir cəhd yoxdur
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ExamDetailModal
+            examDetail={examDetail}
+            loading={loadingDetail}
+            onClose={closeDetail}
+            onSelectAttempt={setSelectedStudentAttempt}
+          />
         )}
 
         {/* Student Detail Modal */}

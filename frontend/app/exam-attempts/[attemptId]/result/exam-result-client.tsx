@@ -61,24 +61,8 @@ export default function ExamResultClient({
 
   const getAllQuestions = () => {
     if (!result || !result.exam) return [];
-
-    const questions: any[] = [];
-
-    // Add questions from topics
-    if (result.exam.topics) {
-      result.exam.topics.forEach((topic: any) => {
-        if (topic.questions) {
-          questions.push(...topic.questions);
-        }
-      });
-    }
-
-    // Add regular questions
-    if (result.exam.questions) {
-      questions.push(...result.exam.questions);
-    }
-
-    return questions;
+    // Backend already provides allQuestions with readingText mapped
+    return (result.exam as any).allQuestions || [];
   };
 
   const getAnswerForQuestion = (questionId: string) => {
@@ -153,7 +137,9 @@ export default function ExamResultClient({
             aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl" aria-hidden="true">←</span>
+            <span className="text-xl" aria-hidden="true">
+              ←
+            </span>
             <span>İdarə panelinə qayıt</span>
           </Link>
         </div>
@@ -259,7 +245,10 @@ export default function ExamResultClient({
                       </p>
                       {entry.prizeAmount > 0 && (
                         <p className="text-sm text-green-600 font-semibold">
-                          +{entry.prizeAmount.toFixed(2)} AZN <span role="img" aria-label="Mükafat kuboku">🏆</span>
+                          +{entry.prizeAmount.toFixed(2)} AZN{" "}
+                          <span role="img" aria-label="Mükafat kuboku">
+                            🏆
+                          </span>
                         </p>
                       )}
                     </div>
@@ -277,54 +266,69 @@ export default function ExamResultClient({
           </h2>
 
           <div className="space-y-8">
-            {questions.map((question, index) => {
+            {questions.map((question: any, index: number) => {
               const answer = getAnswerForQuestion(question.id);
               const correctAnswer = getCorrectAnswer(question);
               const isCorrect = answer?.isCorrect || false;
 
               return (
-                <div
-                  key={question.id}
-                  className={`border-2 rounded-xl p-6 ${
-                    isCorrect
-                      ? "border-green-200 bg-green-50"
-                      : "border-red-200 bg-red-50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
-                          Sual {index + 1}
-                        </span>
-                        <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                          {question.type === QuestionType.MULTIPLE_CHOICE
-                            ? "Test"
-                            : question.type === QuestionType.OPEN_ENDED
-                            ? "Açıq sual"
-                            : "Mətn əsaslı"}
-                        </span>
-                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
-                          {question.points || 1} bal
-                        </span>
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            isCorrect
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {isCorrect ? <><span role="img" aria-label="Düzgün">✓</span> Doğru</> : <><span role="img" aria-label="Səhv">✗</span> Səhv</>}
-                        </span>
-                        {answer && (
-                          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm">
-                            {answer.points || 0} bal qazanıldı
+                <div key={question.id} className="space-y-4">
+                  <div
+                    className={`border-2 rounded-xl p-6 ${
+                      isCorrect
+                        ? "border-green-200 bg-green-50"
+                        : "border-red-200 bg-red-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
+                            Sual {index + 1}
                           </span>
-                        )}
+                          <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
+                            {question.type === QuestionType.MULTIPLE_CHOICE
+                              ? "Test"
+                              : question.type === QuestionType.OPEN_ENDED
+                              ? "Açıq sual"
+                              : "Mətn əsaslı"}
+                          </span>
+                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
+                            {question.points || 1} bal
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                              isCorrect
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {isCorrect ? (
+                              <>
+                                <span role="img" aria-label="Düzgün">
+                                  ✓
+                                </span>{" "}
+                                Doğru
+                              </>
+                            ) : (
+                              <>
+                                <span role="img" aria-label="Səhv">
+                                  ✗
+                                </span>{" "}
+                                Səhv
+                              </>
+                            )}
+                          </span>
+                          {answer && (
+                            <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm">
+                              {answer.points || 0} bal qazanıldı
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {question.content}
+                        </p>
                       </div>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {question.content}
-                      </p>
                     </div>
                   </div>
 
@@ -389,12 +393,18 @@ export default function ExamResultClient({
                                 </span>
                                 {isCorrectOption && (
                                   <span className="text-green-700 font-semibold">
-                                    <span role="img" aria-label="Düzgün">✓</span> Düzgün cavab
+                                    <span role="img" aria-label="Düzgün">
+                                      ✓
+                                    </span>{" "}
+                                    Düzgün cavab
                                   </span>
                                 )}
                                 {isSelected && !isCorrectOption && (
                                   <span className="text-red-700 font-semibold">
-                                    <span role="img" aria-label="Səhv">✗</span> Sizin seçiminiz
+                                    <span role="img" aria-label="Səhv">
+                                      ✗
+                                    </span>{" "}
+                                    Sizin seçiminiz
                                   </span>
                                 )}
                               </div>
@@ -434,4 +444,3 @@ export default function ExamResultClient({
     </div>
   );
 }
-

@@ -145,6 +145,7 @@ export class ExamAttemptService {
         questions: {
           include: {
             options: true,
+            readingText: true,
           },
           orderBy: { order: 'asc' },
         },
@@ -167,9 +168,44 @@ export class ExamAttemptService {
       });
     });
 
+    // Combine all questions (from topics and regular questions) and map readingText
+    const allQuestions = [];
+
+    // Add questions from topics
+    if (examWithQuestions.topics) {
+      examWithQuestions.topics.forEach((topic) => {
+        if (topic.questions) {
+          allQuestions.push(...topic.questions);
+        }
+      });
+    }
+
+    // Add regular questions
+    if (examWithQuestions.questions) {
+      allQuestions.push(...examWithQuestions.questions);
+    }
+
+    // Map readingTextId to readingText object
+    if (
+      examWithQuestions.readingTexts &&
+      examWithQuestions.readingTexts.length > 0
+    ) {
+      const readingTextsMap = new Map(
+        examWithQuestions.readingTexts.map((rt) => [rt.id, rt]),
+      );
+      allQuestions.forEach((q: any) => {
+        if (q.readingTextId && !q.readingText) {
+          q.readingText = readingTextsMap.get(q.readingTextId) || null;
+        }
+      });
+    }
+
     return {
       attempt,
-      exam: examWithQuestions,
+      exam: {
+        ...examWithQuestions,
+        allQuestions, // Add combined questions array
+      },
     };
   }
 
@@ -184,6 +220,7 @@ export class ExamAttemptService {
                 questions: {
                   include: {
                     options: true,
+                    readingText: true,
                   },
                 },
               },
@@ -191,6 +228,12 @@ export class ExamAttemptService {
             questions: {
               include: {
                 options: true,
+                readingText: true,
+              },
+            },
+            readingTexts: {
+              orderBy: {
+                order: 'asc',
               },
             },
           },
@@ -213,7 +256,54 @@ export class ExamAttemptService {
       delete q.modelAnswer;
     });
 
-    return attempt;
+    // Remove correct answers from topic questions too
+    if (attempt.exam.topics) {
+      attempt.exam.topics.forEach((topic) => {
+        if (topic.questions) {
+          topic.questions.forEach((q) => {
+            delete q.correctAnswer;
+            delete q.modelAnswer;
+          });
+        }
+      });
+    }
+
+    // Combine all questions (from topics and regular questions) and map readingText
+    const allQuestions = [];
+
+    // Add questions from topics
+    if (attempt.exam.topics) {
+      attempt.exam.topics.forEach((topic) => {
+        if (topic.questions) {
+          allQuestions.push(...topic.questions);
+        }
+      });
+    }
+
+    // Add regular questions
+    if (attempt.exam.questions) {
+      allQuestions.push(...attempt.exam.questions);
+    }
+
+    // Map readingTextId to readingText object
+    if (attempt.exam.readingTexts && attempt.exam.readingTexts.length > 0) {
+      const readingTextsMap = new Map(
+        attempt.exam.readingTexts.map((rt) => [rt.id, rt]),
+      );
+      allQuestions.forEach((q: any) => {
+        if (q.readingTextId && !q.readingText) {
+          q.readingText = readingTextsMap.get(q.readingTextId) || null;
+        }
+      });
+    }
+
+    return {
+      ...attempt,
+      exam: {
+        ...attempt.exam,
+        allQuestions, // Add combined questions array
+      },
+    };
   }
 
   async submitAnswer(
@@ -272,15 +362,6 @@ export class ExamAttemptService {
       include: {
         exam: {
           include: {
-            questions: {
-              include: {
-                options: {
-                  orderBy: {
-                    order: 'asc',
-                  },
-                },
-              },
-            },
             topics: {
               include: {
                 questions: {
@@ -290,8 +371,19 @@ export class ExamAttemptService {
                         order: 'asc',
                       },
                     },
+                    readingText: true,
                   },
                 },
+              },
+            },
+            questions: {
+              include: {
+                options: {
+                  orderBy: {
+                    order: 'asc',
+                  },
+                },
+                readingText: true,
               },
             },
           },
@@ -796,6 +888,7 @@ export class ExamAttemptService {
                 questions: {
                   include: {
                     options: true,
+                    readingText: true,
                   },
                 },
               },
@@ -803,6 +896,12 @@ export class ExamAttemptService {
             questions: {
               include: {
                 options: true,
+                readingText: true,
+              },
+            },
+            readingTexts: {
+              orderBy: {
+                order: 'asc',
               },
             },
           },
@@ -831,7 +930,42 @@ export class ExamAttemptService {
     // Check and award prizes if exam is no longer active (3 days passed)
     await this.checkAndAwardPrizes(attempt.examId);
 
-    return attempt;
+    // Combine all questions (from topics and regular questions) and map readingText
+    const allQuestions = [];
+
+    // Add questions from topics
+    if (attempt.exam.topics) {
+      attempt.exam.topics.forEach((topic) => {
+        if (topic.questions) {
+          allQuestions.push(...topic.questions);
+        }
+      });
+    }
+
+    // Add regular questions
+    if (attempt.exam.questions) {
+      allQuestions.push(...attempt.exam.questions);
+    }
+
+    // Map readingTextId to readingText object
+    if (attempt.exam.readingTexts && attempt.exam.readingTexts.length > 0) {
+      const readingTextsMap = new Map(
+        attempt.exam.readingTexts.map((rt) => [rt.id, rt]),
+      );
+      allQuestions.forEach((q: any) => {
+        if (q.readingTextId && !q.readingText) {
+          q.readingText = readingTextsMap.get(q.readingTextId) || null;
+        }
+      });
+    }
+
+    return {
+      ...attempt,
+      exam: {
+        ...attempt.exam,
+        allQuestions, // Add combined questions array
+      },
+    };
   }
 
   async getMyAttempts(studentId: string) {

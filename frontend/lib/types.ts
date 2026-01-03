@@ -1,32 +1,32 @@
 export enum UserRole {
-  STUDENT = 'STUDENT',
-  TEACHER = 'TEACHER',
-  ADMIN = 'ADMIN',
+  STUDENT = "STUDENT",
+  TEACHER = "TEACHER",
+  ADMIN = "ADMIN",
 }
 
 export enum QuestionType {
-  MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
-  OPEN_ENDED = 'OPEN_ENDED',
-  READING_COMPREHENSION = 'READING_COMPREHENSION',
+  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
+  OPEN_ENDED = "OPEN_ENDED",
+  READING_COMPREHENSION = "READING_COMPREHENSION",
 }
 
 export enum ExamStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  ARCHIVED = 'ARCHIVED',
+  DRAFT = "DRAFT",
+  PUBLISHED = "PUBLISHED",
+  ARCHIVED = "ARCHIVED",
 }
 
 export enum PaymentStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  REFUNDED = 'REFUNDED',
+  PENDING = "PENDING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  REFUNDED = "REFUNDED",
 }
 
 export enum ExamAttemptStatus {
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  TIMED_OUT = 'TIMED_OUT',
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  TIMED_OUT = "TIMED_OUT",
 }
 
 export interface User {
@@ -85,6 +85,7 @@ export interface Question {
   id: string;
   examId: string;
   topicId?: string;
+  readingTextId?: string;
   type: QuestionType;
   content: string;
   order: number;
@@ -92,6 +93,7 @@ export interface Question {
   correctAnswer?: string;
   modelAnswer?: string;
   options?: Option[];
+  readingText?: ReadingText;
 }
 
 export interface Option {
@@ -133,4 +135,3 @@ export interface Payment {
   transactionId?: string;
   createdAt: string;
 }
-

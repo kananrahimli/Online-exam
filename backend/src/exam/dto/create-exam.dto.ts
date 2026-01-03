@@ -41,6 +41,10 @@ class QuestionDto {
   modelAnswer?: string;
 
   @IsOptional()
+  @IsString()
+  readingTextId?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OptionDto)

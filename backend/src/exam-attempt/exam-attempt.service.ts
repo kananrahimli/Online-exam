@@ -982,6 +982,7 @@ export class ExamAttemptService {
             level: true,
             duration: true,
             publishedAt: true,
+            createdAt: true,
             teacher: {
               select: {
                 id: true,

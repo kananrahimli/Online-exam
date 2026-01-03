@@ -276,6 +276,12 @@ export default function EditExamPage() {
                     : undefined;
 
                 // Return question without order field - backend will handle ordering
+                // Convert empty string to undefined
+                const readingTextId = 
+                  q.readingTextId && q.readingTextId.trim() !== ""
+                    ? q.readingTextId
+                    : undefined;
+                
                 return {
                   type: q.type,
                   content: q.content,
@@ -286,7 +292,7 @@ export default function EditExamPage() {
                       ? correctAnswer
                       : undefined,
                   modelAnswer: q.modelAnswer || undefined,
-                  readingTextId: q.readingTextId || undefined,
+                  readingTextId: readingTextId,
                 };
               })
             : [],

@@ -19,6 +19,7 @@ interface ExamAttemptWithExam {
     subject: string;
     level: string;
     duration: number;
+    createdAt?: string;
     teacher?: {
       firstName: string;
       lastName: string;

@@ -2,9 +2,9 @@ import ExamResultServerWrapper from "./server-wrapper";
 import type { Metadata } from "next";
 
 interface ExamResultPageProps {
-  params: {
+  params: Promise<{
     attemptId: string;
-  };
+  }>;
 }
 
 export const metadata: Metadata = {
@@ -17,8 +17,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ExamResultPage({ params }: ExamResultPageProps) {
-  return <ExamResultServerWrapper params={params} />;
+export default async function ExamResultPage({ params }: ExamResultPageProps) {
+  const resolvedParams = await params;
+  return <ExamResultServerWrapper params={resolvedParams} />;
 }
 
 /* Client component moved to exam-result-client.tsx */

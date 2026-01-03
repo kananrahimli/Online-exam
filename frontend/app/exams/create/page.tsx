@@ -181,6 +181,12 @@ export default function CreateExamPage() {
 
                 // Return question with readingTextId if provided
                 // readingTextId will be sent as is, backend will validate
+                // Convert empty string to undefined
+                const readingTextId = 
+                  q.readingTextId && q.readingTextId.trim() !== ""
+                    ? q.readingTextId
+                    : undefined;
+                
                 return {
                   type: q.type,
                   content: q.content,
@@ -191,7 +197,7 @@ export default function CreateExamPage() {
                       ? correctAnswer
                       : undefined,
                   modelAnswer: q.modelAnswer || undefined,
-                  readingTextId: q.readingTextId || undefined,
+                  readingTextId: readingTextId,
                 };
               })
             : [],

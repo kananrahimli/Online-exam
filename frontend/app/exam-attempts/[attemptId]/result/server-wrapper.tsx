@@ -28,8 +28,12 @@ export default async function ExamResultServerWrapper({
 
     // Fetch result and user balance server-side
     const [resultResponse, balanceResponse] = await Promise.all([
-      fetchServerAPI(`/exam-attempts/${attemptId}/result`).catch(() => null),
-      fetchServerAPI<{ balance: number }>("/auth/balance").catch(() => ({ balance: 0 })),
+      fetchServerAPI<any>(`/exam-attempts/${attemptId}/result`).catch(
+        () => null
+      ),
+      fetchServerAPI<{ balance: number }>("/auth/balance").catch(() => ({
+        balance: 0,
+      })),
     ]);
 
     if (!resultResponse) {
@@ -42,7 +46,9 @@ export default async function ExamResultServerWrapper({
     let leaderboard = null;
     if (resultResponse?.exam?.id) {
       try {
-        leaderboard = await fetchServerAPI(`/exams/${resultResponse.exam.id}/leaderboard`);
+        leaderboard = await fetchServerAPI(
+          `/exams/${resultResponse.exam.id}/leaderboard`
+        );
       } catch (err) {
         // Leaderboard is optional, silently fail
       }
@@ -61,4 +67,3 @@ export default async function ExamResultServerWrapper({
     redirect("/login");
   }
 }
-

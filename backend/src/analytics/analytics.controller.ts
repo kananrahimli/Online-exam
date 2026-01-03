@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -21,7 +21,15 @@ export class AnalyticsController {
   }
 
   @Get('summary')
-  async getSummary(@CurrentUser() user: any) {
-    return this.analyticsService.getSummary(user.id);
+  async getSummary(
+    @CurrentUser() user: any,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+  ) {
+    return this.analyticsService.getSummary(
+      user.id,
+      sortBy || 'createdAt',
+      sortOrder || 'desc',
+    );
   }
 }

@@ -13,6 +13,8 @@ interface ExamStats {
   averageScore: number;
   totalStudents: number;
   completionRate: number;
+  createdAt: string;
+  createdAtTime?: string;
 }
 
 interface SummaryData {
@@ -32,8 +34,10 @@ export default async function AnalyticsServerWrapper() {
       redirect("/login");
     }
 
-    // Fetch summary stats server-side
-    const summaryData = await fetchServerAPI<SummaryData>("/analytics/summary").catch(() => ({
+    // Fetch summary stats server-side with sorting by createdAt (newest to oldest)
+    const summaryData = await fetchServerAPI<SummaryData>(
+      "/analytics/summary?sortBy=createdAt&sortOrder=desc"
+    ).catch(() => ({
       examStats: [],
       totalExams: 0,
       totalStudents: 0,

@@ -145,12 +145,18 @@ export class ExamService {
         // Find reading text ID if readingTextId is provided
         let readingTextId = q.readingTextId || undefined;
         if (readingTextId) {
-          // If readingTextId is provided, validate it exists
-          const textExists = createdReadingTexts.find(
-            (rt) => rt.id === readingTextId,
-          );
-          if (!textExists) {
-            readingTextId = undefined;
+          // Map temp ID to real ID if needed
+          const realId = tempIdToRealIdMap.get(readingTextId);
+          if (realId) {
+            readingTextId = realId;
+          } else {
+            // If not in map, check if it's already a real ID
+            const textExists = createdReadingTexts.find(
+              (rt) => rt.id === readingTextId,
+            );
+            if (!textExists) {
+              readingTextId = undefined;
+            }
           }
         }
 
@@ -577,12 +583,18 @@ export class ExamService {
           // Find reading text ID if readingTextId is provided
           let readingTextId = q.readingTextId || undefined;
           if (readingTextId) {
-            // If readingTextId is provided, validate it exists
-            const textExists = createdReadingTexts.find(
-              (rt) => rt.id === readingTextId,
-            );
-            if (!textExists) {
-              readingTextId = undefined;
+            // Map temp ID to real ID if needed
+            const realId = tempIdToRealIdMap.get(readingTextId);
+            if (realId) {
+              readingTextId = realId;
+            } else {
+              // If not in map, check if it's already a real ID
+              const textExists = createdReadingTexts.find(
+                (rt) => rt.id === readingTextId,
+              );
+              if (!textExists) {
+                readingTextId = undefined;
+              }
             }
           }
 

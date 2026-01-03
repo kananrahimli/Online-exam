@@ -237,10 +237,15 @@ export class AnalyticsService {
             answers: attempt.answers.map((answer) => {
               // Ensure readingText is mapped even if it wasn't included in the relation
               let readingText = answer.question.readingText;
-              if (!readingText && answer.question.readingTextId && examWithReadingTexts?.readingTexts) {
-                readingText = examWithReadingTexts.readingTexts.find(
-                  (rt) => rt.id === answer.question.readingTextId,
-                ) || null;
+              if (
+                !readingText &&
+                answer.question.readingTextId &&
+                examWithReadingTexts?.readingTexts
+              ) {
+                readingText =
+                  examWithReadingTexts.readingTexts.find(
+                    (rt) => rt.id === answer.question.readingTextId,
+                  ) || null;
               }
 
               return {
@@ -286,7 +291,17 @@ export class AnalyticsService {
     };
   }
 
-  async getSummary(teacherId: string) {
+  async getSummary(
+    teacherId: string,
+    sortBy: string = 'createdAt',
+    sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
+    // Validate sortBy field
+    const validSortFields = ['createdAt', 'title'];
+    const validSortOrder =
+      sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : 'asc';
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+
     const exams = await this.prisma.exam.findMany({
       where: { teacherId },
       include: {
@@ -301,6 +316,9 @@ export class AnalyticsService {
             },
           },
         },
+      },
+      orderBy: {
+        [validSortBy]: validSortOrder,
       },
     });
 
@@ -319,6 +337,35 @@ export class AnalyticsService {
           ? scores.reduce((sum, score) => sum + score, 0) / scores.length
           : 0;
 
+      // Format createdAt in Azerbaijani locale
+      let formattedDate: string = '-';
+      let formattedTime: string = '';
+
+      if (exam.createdAt) {
+        try {
+          const date =
+            exam.createdAt instanceof Date
+              ? exam.createdAt
+              : new Date(exam.createdAt);
+
+          if (!isNaN(date.getTime())) {
+            // Format date in Azerbaijani locale
+            formattedDate = date.toLocaleDateString('az-AZ', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            });
+
+            formattedTime = date.toLocaleTimeString('az-AZ', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+          }
+        } catch (e) {
+          console.error('Error formatting createdAt:', e, exam.createdAt);
+        }
+      }
+
       return {
         examId: exam.id,
         examTitle: exam.title,
@@ -327,6 +374,8 @@ export class AnalyticsService {
         totalStudents: new Set(attempts.map((a) => a.studentId)).size,
         completionRate:
           attempts.length > 0 ? completedAttempts.length / attempts.length : 0,
+        createdAt: formattedDate,
+        createdAtTime: formattedTime,
       };
     });
 

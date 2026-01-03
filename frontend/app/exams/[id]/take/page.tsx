@@ -211,24 +211,8 @@ export default function TakeExamPage() {
 
   const getAllQuestions = (): Question[] => {
     if (!exam) return [];
-
-    const questions: Question[] = [];
-
-    // Add questions from topics
-    if (exam.topics) {
-      exam.topics.forEach((topic) => {
-        if (topic.questions) {
-          questions.push(...topic.questions);
-        }
-      });
-    }
-
-    // Add regular questions
-    if (exam.questions) {
-      questions.push(...exam.questions);
-    }
-
-    return questions;
+    // Backend already provides allQuestions with readingText mapped
+    return (exam as any).allQuestions || [];
   };
 
   const handleSubmit = async (skipConfirm: boolean = false) => {
@@ -357,21 +341,6 @@ export default function TakeExamPage() {
         {/* Exam Content */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-8">
-            {exam.readingTexts && exam.readingTexts.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Oxuma Mətnləri
-                </h2>
-                {exam.readingTexts.map((text: any, index: number) => (
-                  <div key={text.id || index} className="mb-6">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                      {text.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Group questions by topics */}
             {exam.topics && exam.topics.length > 0
               ? exam.topics.map((topic: any, topicIndex: number) => {
@@ -395,104 +364,110 @@ export default function TakeExamPage() {
                       {/* Questions in this topic */}
                       {topicQuestions.map(
                         (question: Question, qIndex: number) => {
-                          const globalIndex = getAllQuestions().findIndex(
+                          const allQuestions = getAllQuestions();
+                          const globalIndex = allQuestions.findIndex(
                             (q) => q.id === question.id
                           );
+
                           return (
-                            <div
-                              key={question.id}
-                              className="bg-white rounded-xl shadow-lg p-6 border border-gray-200"
-                            >
-                              <div className="flex items-start justify-between mb-4">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
-                                      Sual {globalIndex + 1}
-                                    </span>
-                                    <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                                      {question.type ===
-                                      QuestionType.MULTIPLE_CHOICE
-                                        ? "Test"
-                                        : question.type ===
-                                          QuestionType.OPEN_ENDED
-                                        ? "Açıq sual"
-                                        : "Mətn əsaslı"}
-                                    </span>
-                                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
-                                      {question.points || topic.points || 1} bal
-                                    </span>
+                            <div key={question.id} className="space-y-4">
+                              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                        Sual {globalIndex + 1}
+                                      </span>
+                                      <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
+                                        {question.type ===
+                                        QuestionType.MULTIPLE_CHOICE
+                                          ? "Test"
+                                          : question.type ===
+                                            QuestionType.OPEN_ENDED
+                                          ? "Açıq sual"
+                                          : "Mətn əsaslı"}
+                                      </span>
+                                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
+                                        {question.points || topic.points || 1}{" "}
+                                        bal
+                                      </span>
+                                    </div>
+                                    <p className="text-lg font-semibold text-gray-900">
+                                      {question.content}
+                                    </p>
                                   </div>
-                                  <p className="text-lg font-semibold text-gray-900">
-                                    {question.content}
-                                  </p>
+                                  {answers[question.id] && (
+                                    <span className="text-green-600 text-sm font-medium ml-4">
+                                      <span
+                                        role="img"
+                                        aria-label="Cavablandırılıb"
+                                      >
+                                        ✓
+                                      </span>{" "}
+                                      Cavablandırılıb
+                                    </span>
+                                  )}
                                 </div>
-                                {answers[question.id] && (
-                                  <span className="text-green-600 text-sm font-medium">
-                                    <span
-                                      role="img"
-                                      aria-label="Cavablandırılıb"
-                                    >
-                                      ✓
-                                    </span>{" "}
-                                    Cavablandırılıb
-                                  </span>
+
+                                {question.type ===
+                                  QuestionType.MULTIPLE_CHOICE &&
+                                  question.options && (
+                                    <div className="space-y-3 mt-4">
+                                      {question.options
+                                        .sort((a, b) => a.order - b.order)
+                                        .map((option, optIndex) => (
+                                          <label
+                                            key={option.id}
+                                            className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                                              answers[question.id] === option.id
+                                                ? "border-indigo-500 bg-indigo-50"
+                                                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                            }`}
+                                          >
+                                            <input
+                                              type="radio"
+                                              name={`question-${question.id}`}
+                                              value={option.id}
+                                              checked={
+                                                answers[question.id] ===
+                                                option.id
+                                              }
+                                              onChange={(e) =>
+                                                handleAnswerChange(
+                                                  question.id,
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <span className="ml-4 text-gray-900 flex-1">
+                                              {String.fromCharCode(
+                                                65 + optIndex
+                                              )}
+                                              . {option.content}
+                                            </span>
+                                          </label>
+                                        ))}
+                                    </div>
+                                  )}
+
+                                {question.type === QuestionType.OPEN_ENDED && (
+                                  <div className="mt-4">
+                                    <textarea
+                                      value={answers[question.id] || ""}
+                                      onChange={(e) =>
+                                        handleAnswerChange(
+                                          question.id,
+                                          e.target.value
+                                        )
+                                      }
+                                      rows={6}
+                                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
+                                      placeholder="Cavabınızı yazın..."
+                                    />
+                                  </div>
                                 )}
                               </div>
-
-                              {question.type === QuestionType.MULTIPLE_CHOICE &&
-                                question.options && (
-                                  <div className="space-y-3 mt-4">
-                                    {question.options
-                                      .sort((a, b) => a.order - b.order)
-                                      .map((option, optIndex) => (
-                                        <label
-                                          key={option.id}
-                                          className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                                            answers[question.id] === option.id
-                                              ? "border-indigo-500 bg-indigo-50"
-                                              : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                          }`}
-                                        >
-                                          <input
-                                            type="radio"
-                                            name={`question-${question.id}`}
-                                            value={option.id}
-                                            checked={
-                                              answers[question.id] === option.id
-                                            }
-                                            onChange={(e) =>
-                                              handleAnswerChange(
-                                                question.id,
-                                                e.target.value
-                                              )
-                                            }
-                                            className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
-                                          />
-                                          <span className="ml-4 text-gray-900 flex-1">
-                                            {String.fromCharCode(65 + optIndex)}
-                                            . {option.content}
-                                          </span>
-                                        </label>
-                                      ))}
-                                  </div>
-                                )}
-
-                              {question.type === QuestionType.OPEN_ENDED && (
-                                <div className="mt-4">
-                                  <textarea
-                                    value={answers[question.id] || ""}
-                                    onChange={(e) =>
-                                      handleAnswerChange(
-                                        question.id,
-                                        e.target.value
-                                      )
-                                    }
-                                    rows={6}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                                    placeholder="Cavabınızı yazın..."
-                                  />
-                                </div>
-                              )}
                             </div>
                           );
                         }
@@ -500,91 +475,96 @@ export default function TakeExamPage() {
                     </div>
                   );
                 })
-              : // No topics - show regular questions
-                questions.map((question, index) => (
-                  <div
-                    key={question.id}
-                    className="bg-white rounded-xl shadow-lg p-6 border border-gray-200"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            Sual {index + 1}
-                          </span>
-                          <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                            {question.type === QuestionType.MULTIPLE_CHOICE
-                              ? "Test"
-                              : question.type === QuestionType.OPEN_ENDED
-                              ? "Açıq sual"
-                              : "Mətn əsaslı"}
-                          </span>
-                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
-                            {question.points || 1} bal
-                          </span>
+              : questions.map((question, index) => {
+                  return (
+                    <div key={question.id} className="space-y-4">
+                      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                Sual {index + 1}
+                              </span>
+                              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
+                                {question.type === QuestionType.MULTIPLE_CHOICE
+                                  ? "Test"
+                                  : question.type === QuestionType.OPEN_ENDED
+                                  ? "Açıq sual"
+                                  : "Mətn əsaslı"}
+                              </span>
+                              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
+                                {question.points || 1} bal
+                              </span>
+                            </div>
+                            <p className="text-lg font-semibold text-gray-900">
+                              {question.content}
+                            </p>
+                          </div>
+                          {answers[question.id] && (
+                            <span className="text-green-600 text-sm font-medium ml-4">
+                              <span role="img" aria-label="Cavablandırılıb">
+                                ✓
+                              </span>{" "}
+                              Cavablandırılıb
+                            </span>
+                          )}
                         </div>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {question.content}
-                        </p>
+
+                        {question.type === QuestionType.MULTIPLE_CHOICE &&
+                          question.options && (
+                            <div className="space-y-3 mt-4">
+                              {question.options
+                                .sort((a, b) => a.order - b.order)
+                                .map((option, optIndex) => (
+                                  <label
+                                    key={option.id}
+                                    className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                                      answers[question.id] === option.id
+                                        ? "border-indigo-500 bg-indigo-50"
+                                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`question-${question.id}`}
+                                      value={option.id}
+                                      checked={
+                                        answers[question.id] === option.id
+                                      }
+                                      onChange={(e) =>
+                                        handleAnswerChange(
+                                          question.id,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <span className="ml-4 text-gray-900 flex-1">
+                                      {String.fromCharCode(65 + optIndex)}.{" "}
+                                      {option.content}
+                                    </span>
+                                  </label>
+                                ))}
+                            </div>
+                          )}
+
+                        {question.type === QuestionType.OPEN_ENDED && (
+                          <div className="mt-4">
+                            <textarea
+                              value={answers[question.id] || ""}
+                              onChange={(e) =>
+                                handleAnswerChange(question.id, e.target.value)
+                              }
+                              rows={6}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
+                              placeholder="Cavabınızı yazın..."
+                            />
+                          </div>
+                        )}
                       </div>
-                      {answers[question.id] && (
-                        <span className="text-green-600 text-sm font-medium">
-                          ✓ Cavablandırılıb
-                        </span>
-                      )}
                     </div>
-
-                    {question.type === QuestionType.MULTIPLE_CHOICE &&
-                      question.options && (
-                        <div className="space-y-3 mt-4">
-                          {question.options
-                            .sort((a, b) => a.order - b.order)
-                            .map((option, optIndex) => (
-                              <label
-                                key={option.id}
-                                className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                                  answers[question.id] === option.id
-                                    ? "border-indigo-500 bg-indigo-50"
-                                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`question-${question.id}`}
-                                  value={option.id}
-                                  checked={answers[question.id] === option.id}
-                                  onChange={(e) =>
-                                    handleAnswerChange(
-                                      question.id,
-                                      e.target.value
-                                    )
-                                  }
-                                  className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <span className="ml-4 text-gray-900 flex-1">
-                                  {String.fromCharCode(65 + optIndex)}.{" "}
-                                  {option.content}
-                                </span>
-                              </label>
-                            ))}
-                        </div>
-                      )}
-
-                    {question.type === QuestionType.OPEN_ENDED && (
-                      <div className="mt-4">
-                        <textarea
-                          value={answers[question.id] || ""}
-                          onChange={(e) =>
-                            handleAnswerChange(question.id, e.target.value)
-                          }
-                          rows={6}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                          placeholder="Cavabınızı yazın..."
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
           </div>
 
           {/* Submit Button at Bottom */}

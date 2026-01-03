@@ -37,6 +37,25 @@ export class AnalyticsService {
                 points: true,
                 content: true,
                 modelAnswer: true,
+                correctAnswer: true,
+                readingTextId: true,
+                readingText: {
+                  select: {
+                    id: true,
+                    content: true,
+                    order: true,
+                  },
+                },
+                options: {
+                  select: {
+                    id: true,
+                    content: true,
+                    order: true,
+                  },
+                  orderBy: {
+                    order: 'asc',
+                  },
+                },
               },
             },
             option: true,
@@ -164,6 +183,23 @@ export class AnalyticsService {
       currentPosition += tiedAttempts.length;
     }
 
+    // Get exam with readingTexts
+    const examWithReadingTexts = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      select: {
+        readingTexts: {
+          select: {
+            id: true,
+            content: true,
+            order: true,
+          },
+          orderBy: {
+            order: 'asc',
+          },
+        },
+      },
+    });
+
     return {
       examId,
       examTitle: exam.title,
@@ -173,6 +209,9 @@ export class AnalyticsService {
       totalStudents: uniqueStudents,
       completionRate:
         totalAttempts > 0 ? completedAttemptsCount / totalAttempts : 0,
+      exam: {
+        readingTexts: examWithReadingTexts?.readingTexts || [],
+      },
       attempts: attempts
         .map((attempt) => {
           const positionInfo = attemptPositions.get(attempt.id) || {
@@ -195,19 +234,33 @@ export class AnalyticsService {
                 : null,
             position: positionInfo.position,
             prizeAmount: positionInfo.prizeAmount,
-            answers: attempt.answers.map((answer) => ({
-              id: answer.id,
-              questionId: answer.questionId,
-              questionType: answer.question.type,
-              questionContent: answer.question.content,
-              questionPoints: answer.question.points,
-              modelAnswer: answer.question.modelAnswer,
-              optionId: answer.optionId,
-              content: answer.content,
-              isCorrect: answer.isCorrect,
-              points: answer.points,
-              option: answer.option,
-            })),
+            answers: attempt.answers.map((answer) => {
+              // Ensure readingText is mapped even if it wasn't included in the relation
+              let readingText = answer.question.readingText;
+              if (!readingText && answer.question.readingTextId && examWithReadingTexts?.readingTexts) {
+                readingText = examWithReadingTexts.readingTexts.find(
+                  (rt) => rt.id === answer.question.readingTextId,
+                ) || null;
+              }
+
+              return {
+                id: answer.id,
+                questionId: answer.questionId,
+                questionType: answer.question.type,
+                questionContent: answer.question.content,
+                questionPoints: answer.question.points,
+                modelAnswer: answer.question.modelAnswer,
+                correctAnswer: answer.question.correctAnswer, // Add correct answer
+                questionOptions: answer.question.options || [], // Add all options
+                readingTextId: answer.question.readingTextId,
+                readingText: readingText, // Already mapped
+                optionId: answer.optionId,
+                content: answer.content,
+                isCorrect: answer.isCorrect,
+                points: answer.points,
+                option: answer.option,
+              };
+            }),
           };
         })
         .sort((a, b) => {

@@ -14,12 +14,19 @@ const examSchema = z.object({
   title: z.string().min(3, "Başlıq minimum 3 simvoldan ibarət olmalıdır"),
   description: z.string().optional(),
   subject: z.string().min(2, "Fənn adı lazımdır"),
-  level: z.string().min(1, "Səviyyə lazımdır"),
+  level: z.string().min(1, "Sinif lazımdır"),
   duration: z
     .enum(["60", "120", "180"], {
       errorMap: () => ({ message: "Müddət seçilməlidir" }),
     })
     .transform((val) => parseInt(val)),
+  readingTexts: z
+    .array(
+      z.object({
+        content: z.string().min(10, "Mətn minimum 10 simvol olmalıdır"),
+      })
+    )
+    .optional(),
   questions: z
     .array(
       z
@@ -36,6 +43,7 @@ const examSchema = z.object({
             .optional(),
           correctAnswer: z.string().nullable().optional(),
           modelAnswer: z.string().optional(),
+          readingTextId: z.string().optional(),
         })
         .refine(
           (data) => {
@@ -97,6 +105,7 @@ export default function CreateExamPage() {
     defaultValues: {
       duration: undefined,
       questions: [],
+      readingTexts: [],
     },
   });
 
@@ -109,6 +118,14 @@ export default function CreateExamPage() {
     name: "questions",
   });
 
+  const {
+    fields: readingTextFields,
+    append: appendReadingText,
+    remove: removeReadingText,
+  } = useFieldArray({
+    control,
+    name: "readingTexts",
+  });
 
   useEffect(() => {
     initialize();
@@ -132,9 +149,15 @@ export default function CreateExamPage() {
           ? parseInt(data.duration)
           : data.duration;
 
+      // First create reading texts to get IDs, then map questions
+      // For now, we'll send reading texts first, and backend will create them and return IDs
+      // We need to send readingTextId from frontend (which will be the temporary index)
+      // Backend will map them properly
+
       const examData = {
         ...data,
         duration: durationNum,
+        readingTexts: data.readingTexts || [],
         questions:
           data.questions && data.questions.length > 0
             ? data.questions.map((q) => {
@@ -156,18 +179,19 @@ export default function CreateExamPage() {
                     ? q.correctAnswer
                     : undefined;
 
-                // Return question without order field - backend will handle ordering
-                // All questions are 1 point
+                // Return question with readingTextId if provided
+                // readingTextId will be sent as is, backend will validate
                 return {
                   type: q.type,
                   content: q.content,
-                  points: q.points || 1,
+                  points: 1, // All questions are 1 point
                   options: filteredOptions,
                   correctAnswer:
                     q.type === QuestionType.MULTIPLE_CHOICE
                       ? correctAnswer
                       : undefined,
                   modelAnswer: q.modelAnswer || undefined,
+                  readingTextId: q.readingTextId || undefined,
                 };
               })
             : [],
@@ -193,7 +217,6 @@ export default function CreateExamPage() {
     appendQuestion({
       type: QuestionType.MULTIPLE_CHOICE,
       content: "",
-      points: 1,
       options: [
         { content: "" },
         { content: "" },
@@ -212,7 +235,9 @@ export default function CreateExamPage() {
             aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl" aria-hidden="true">←</span>
+            <span className="text-xl" aria-hidden="true">
+              ←
+            </span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -272,7 +297,7 @@ export default function CreateExamPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Səviyyə *
+                  Sinif *
                 </label>
                 <input
                   {...register("level")}
@@ -353,6 +378,68 @@ export default function CreateExamPage() {
               />
             </div>
 
+            {/* Reading Texts Section */}
+            <div className="border-t pt-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Mətnlər</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Əgər mətn əsasında həll edilməli suallarınız varsa, əvvəlcə
+                    mətn əlavə edin, sonra sualları bu mətnə bağlayın
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => appendReadingText({ content: "" })}
+                  className="px-5 py-2 bg-indigo-600 whitespace-nowrap text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
+                >
+                  + Mətn Əlavə Et
+                </button>
+              </div>
+
+              {readingTextFields.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                  <p>Hələ heç bir mətn əlavə edilməyib</p>
+                  <p className="text-sm mt-2">
+                    Yuxarıdakı düyməyə klik edərək mətn əlavə edin
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {readingTextFields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="border border-gray-200 rounded-lg p-4 bg-blue-50"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-gray-900">
+                          Mətn {index + 1}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => removeReadingText(index)}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Sil
+                        </button>
+                      </div>
+                      <textarea
+                        {...register(`readingTexts.${index}.content`)}
+                        rows={6}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
+                        placeholder="Mətnin məzmununu buraya yazın..."
+                      />
+                      {errors.readingTexts?.[index]?.content && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.readingTexts[index]?.content?.message}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Questions Section */}
             <div className="border-t pt-6">
               <div className="flex justify-between items-center mb-4">
@@ -420,6 +507,43 @@ export default function CreateExamPage() {
                             </option>
                           </select>
                         </div>
+
+                        {readingTextFields.length > 0 && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Mətnə Bağla (İstəyə görə)
+                            </label>
+                            <select
+                              {...register(`questions.${index}.readingTextId`)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                                backgroundSize: "14px 14px",
+                                backgroundPosition: "right 8px center",
+                              }}
+                            >
+                              <option value="">Mətnə bağlamayın</option>
+                              {readingTextFields.map((rt, rtIndex) => {
+                                const rtContent =
+                                  watch(`readingTexts.${rtIndex}.content`) ||
+                                  "";
+                                const preview =
+                                  rtContent.length > 50
+                                    ? rtContent.substring(0, 50) + "..."
+                                    : rtContent || `Mətn ${rtIndex + 1}`;
+                                return (
+                                  <option key={rt.id} value={`temp_${rtIndex}`}>
+                                    Mətn {rtIndex + 1}: {preview}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Bu sualı yuxarıda əlavə etdiyiniz mətnlərdən
+                              birinə bağlayın
+                            </p>
+                          </div>
+                        )}
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -14,7 +14,7 @@ import QuestionTypeMultiSelect from "@/components/QuestionTypeMultiSelect";
 const aiGenerateSchema = z
   .object({
     subject: z.string().min(2, "Fənn adı lazımdır"),
-    level: z.string().min(1, "Səviyyə lazımdır"),
+    level: z.string().min(1, "Sinif lazımdır"),
     topic: z.string().min(2, "Mövzu lazımdır"),
     questionCount: z.number().min(1).max(100),
     questionTypes: z
@@ -96,7 +96,7 @@ export default function AIGenerateExamPage() {
       setGeneratedExam({
         ...response.data,
         title: data.title,
-        description: `${data.subject} - ${data.level} səviyyəsi, ${data.topic} mövzusu`,
+        description: `${data.subject} - Sinif ${data.level} səviyyəsi, ${data.topic} mövzusu`,
         duration: data.duration,
       });
 
@@ -297,7 +297,7 @@ export default function AIGenerateExamPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Səviyyə *
+                  Sinif *
                 </label>
                 <input
                   {...register("level")}

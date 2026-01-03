@@ -14,12 +14,20 @@ const examSchema = z.object({
   title: z.string().min(3, "Başlıq minimum 3 simvoldan ibarət olmalıdır"),
   description: z.string().optional(),
   subject: z.string().min(2, "Fənn adı lazımdır"),
-  level: z.string().min(1, "Səviyyə lazımdır"),
+  level: z.string().min(1, "Sinif lazımdır"),
   duration: z
     .enum(["60", "120", "180"], {
       errorMap: () => ({ message: "Müddət seçilməlidir" }),
     })
     .transform((val) => parseInt(val)),
+  readingTexts: z
+    .array(
+      z.object({
+        content: z.string().min(1, "Mətni daxil edin!"),
+        id: z.string().optional(),
+      })
+    )
+    .optional(),
   topics: z
     .array(
       z.object({
@@ -38,6 +46,7 @@ const examSchema = z.object({
               .optional(),
             correctAnswer: z.string().optional(),
             modelAnswer: z.string().optional(),
+            readingTextId: z.string().optional(),
           })
         ),
       })
@@ -59,6 +68,7 @@ const examSchema = z.object({
             .optional(),
           correctAnswer: z.string().nullable().optional(),
           modelAnswer: z.string().optional(),
+          readingTextId: z.string().optional(),
         })
         .refine(
           (data) => {
@@ -124,6 +134,7 @@ export default function EditExamPage() {
       duration: undefined,
       questions: [],
       topics: [],
+      readingTexts: [],
     },
   });
 
@@ -136,6 +147,15 @@ export default function EditExamPage() {
     name: "questions",
   });
 
+  const {
+    fields: readingTextFields,
+    append: appendReadingText,
+    remove: removeReadingText,
+  } = useFieldArray({
+    control,
+    name: "readingTexts",
+  });
+
   useEffect(() => {
     initialize();
     if (!token) {
@@ -144,6 +164,7 @@ export default function EditExamPage() {
     }
 
     fetchExam();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, router, initialize, examId]);
 
   const fetchExam = async () => {
@@ -153,12 +174,25 @@ export default function EditExamPage() {
       const exam = response.data;
 
       // Transform exam data to form format
-      const formData: ExamFormData = {
+      const formData: any = {
         title: exam.title || "",
         description: exam.description || "",
         subject: exam.subject || "",
         level: exam.level || "",
-        duration: exam.duration?.toString() as "60" | "120" | "180" | undefined,
+        duration:
+          exam.duration === 60
+            ? "60"
+            : exam.duration === 120
+            ? "120"
+            : exam.duration === 180
+            ? "180"
+            : undefined,
+        readingTexts: exam.readingTexts
+          ? exam.readingTexts.map((rt: any) => ({
+              id: rt.id,
+              content: rt.content || "",
+            }))
+          : [],
         questions: exam.questions
           ? exam.questions.map((q: any) => {
               // For multiple choice questions, ensure we have 4 options
@@ -182,6 +216,7 @@ export default function EditExamPage() {
                 options: options,
                 correctAnswer: q.correctAnswer?.toString() || null,
                 modelAnswer: q.modelAnswer || "",
+                readingTextId: q.readingTextId || undefined,
               };
             })
           : [],
@@ -215,6 +250,10 @@ export default function EditExamPage() {
       const examData = {
         ...data,
         duration: durationNum,
+        readingTexts: data.readingTexts?.map((rt, index) => ({
+          content: rt.content,
+          id: rt.id || `temp-reading-text-${index}`,
+        })),
         questions:
           data.questions && data.questions.length > 0
             ? data.questions.map((q) => {
@@ -247,6 +286,7 @@ export default function EditExamPage() {
                       ? correctAnswer
                       : undefined,
                   modelAnswer: q.modelAnswer || undefined,
+                  readingTextId: q.readingTextId || undefined,
                 };
               })
             : [],
@@ -444,6 +484,63 @@ export default function EditExamPage() {
 
             <div className="border-t pt-6">
               <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Mətnlər</h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    appendReadingText({ content: "", id: undefined })
+                  }
+                  className="px-4 py-2 bg-indigo-600 whitespace-nowrap text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
+                >
+                  + Mətn Əlavə Et
+                </button>
+              </div>
+
+              {readingTextFields.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+                  <p>Hələ heç bir mətn əlavə edilməyib</p>
+                  <p className="text-sm mt-2">
+                    Yuxarıdakı düyməyə klik edərək mətn əlavə edin
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {readingTextFields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="border border-gray-200 rounded-lg p-4 bg-blue-50"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-gray-900">
+                          Mətn {index + 1}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => removeReadingText(index)}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Sil
+                        </button>
+                      </div>
+                      <textarea
+                        {...register(`readingTexts.${index}.content`)}
+                        rows={6}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
+                        placeholder="Mətnin məzmununu buraya yazın..."
+                      />
+                      {errors.readingTexts?.[index]?.content && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.readingTexts[index]?.content?.message}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t pt-6">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Suallar</h3>
                 <button
                   type="button"
@@ -482,26 +579,59 @@ export default function EditExamPage() {
                       </div>
 
                       <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sual Tipi
-                          </label>
-                          <select
-                            {...register(`questions.${index}.type`)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                              backgroundSize: "14px 14px",
-                              backgroundPosition: "right 8px center",
-                            }}
-                          >
-                            <option value={QuestionType.MULTIPLE_CHOICE}>
-                              Test sualı
-                            </option>
-                            <option value={QuestionType.OPEN_ENDED}>
-                              Açıq sual
-                            </option>
-                          </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Sual Tipi
+                            </label>
+                            <select
+                              {...register(`questions.${index}.type`)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                                backgroundSize: "14px 14px",
+                                backgroundPosition: "right 8px center",
+                              }}
+                            >
+                              <option value={QuestionType.MULTIPLE_CHOICE}>
+                                Test sualı
+                              </option>
+                              <option value={QuestionType.OPEN_ENDED}>
+                                Açıq sual
+                              </option>
+                            </select>
+                          </div>
+
+                          {readingTextFields.length > 0 && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Oxuma Mətni (İstəyə bağlı)
+                              </label>
+                              <select
+                                {...register(
+                                  `questions.${index}.readingTextId`
+                                )}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-900 appearance-none bg-no-repeat bg-right pr-8"
+                                style={{
+                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                                  backgroundSize: "14px 14px",
+                                  backgroundPosition: "right 8px center",
+                                }}
+                              >
+                                <option value="">Mətn seçilməyib</option>
+                                {readingTextFields.map((rt, rtIndex) => (
+                                  <option
+                                    key={rt.id}
+                                    value={
+                                      rt.id || `temp-reading-text-${rtIndex}`
+                                    }
+                                  >
+                                    Mətn {rtIndex + 1}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -610,4 +740,3 @@ export default function EditExamPage() {
     </div>
   );
 }
-

@@ -125,29 +125,32 @@ model ReadingText {
   order     Int
   createdAt DateTime @default(now())
 
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questions Question[]
 
   @@unique([examId, order])
   @@map("reading_texts")
 }
 
 model Question {
-  id          String       @id @default(cuid())
-  examId      String
-  topicId     String?
-  type        QuestionType
-  content     String       @db.Text
-  order       Int
-  points      Int          @default(1)
-  correctAnswer String?    // For multiple choice: option ID, for open-ended: model answer
-  modelAnswer String?      @db.Text // For open-ended questions
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(cuid())
+  examId        String
+  topicId       String?
+  readingTextId String?
+  type          QuestionType
+  content       String       @db.Text
+  order         Int
+  points        Int          @default(1)
+  correctAnswer String?      // For multiple choice: option ID, for open-ended: model answer
+  modelAnswer   String?      @db.Text // For open-ended questions
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  exam       Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
-  topic      ExamTopic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  options    Option[]
-  answers    Answer[]
+  exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topic       ExamTopic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  readingText ReadingText? @relation(fields: [readingTextId], references: [id], onDelete: SetNull)
+  options     Option[]
+  answers     Answer[]
 
   @@unique([examId, order])
   @@map("questions")

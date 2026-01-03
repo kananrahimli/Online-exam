@@ -31,6 +31,25 @@ export class ExamService {
       },
     });
 
+    // Create reading texts first (so we can link questions to them)
+    const createdReadingTexts: { id: string; order: number }[] = [];
+    const tempIdToRealIdMap = new Map<string, string>(); // Map temp IDs to real IDs
+    if (readingTexts && readingTexts.length > 0) {
+      for (const [index, text] of readingTexts.entries()) {
+        const createdText = await this.prisma.readingText.create({
+          data: {
+            examId: exam.id,
+            content: text.content,
+            order: index,
+          },
+        });
+        createdReadingTexts.push({ id: createdText.id, order: index });
+        // Map temp ID (like "temp_0") or order to real ID
+        tempIdToRealIdMap.set(`temp_${index}`, createdText.id);
+        tempIdToRealIdMap.set(index.toString(), createdText.id);
+      }
+    }
+
     // Then create topics with questions if provided
     if (topics && topics.length > 0) {
       for (const [topicIndex, topic] of topics.entries()) {
@@ -47,8 +66,23 @@ export class ExamService {
         // Create questions for this topic
         if (topic.questions && topic.questions.length > 0) {
           for (const [qIndex, q] of topic.questions.entries()) {
-            // All questions are 1 point
-            const questionPoints = 1;
+            // Find reading text ID if readingTextId is provided
+            let readingTextId = q.readingTextId || undefined;
+            if (readingTextId) {
+              // Map temp ID to real ID if needed
+              const realId = tempIdToRealIdMap.get(readingTextId);
+              if (realId) {
+                readingTextId = realId;
+              } else {
+                // If not in map, check if it's already a real ID
+                const textExists = createdReadingTexts.find(
+                  (rt) => rt.id === readingTextId,
+                );
+                if (!textExists) {
+                  readingTextId = undefined;
+                }
+              }
+            }
 
             // Create question with options first to get option IDs
             const createdQuestion = await this.prisma.question.create({
@@ -58,8 +92,9 @@ export class ExamService {
                 type: q.type,
                 content: q.content,
                 order: qIndex,
-                points: questionPoints,
+                points: 1, // All questions are 1 point
                 modelAnswer: q.modelAnswer,
+                readingTextId: readingTextId,
                 options: q.options
                   ? {
                       create: q.options.map((opt, oIndex) => ({
@@ -107,8 +142,18 @@ export class ExamService {
     // Create questions without topics
     if (questions && questions.length > 0) {
       for (const [index, q] of questions.entries()) {
-        // All questions are 1 point
-        const questionPoints = 1;
+        // Find reading text ID if readingTextId is provided
+        let readingTextId = q.readingTextId || undefined;
+        if (readingTextId) {
+          // If readingTextId is provided, validate it exists
+          const textExists = createdReadingTexts.find(
+            (rt) => rt.id === readingTextId,
+          );
+          if (!textExists) {
+            readingTextId = undefined;
+          }
+        }
+
         // Create question with options first to get option IDs
         const createdQuestion = await this.prisma.question.create({
           data: {
@@ -118,6 +163,7 @@ export class ExamService {
             order: index,
             points: 1, // All questions are 1 point
             modelAnswer: q.modelAnswer,
+            readingTextId: readingTextId,
             options: q.options
               ? {
                   create: q.options.map((opt, oIndex) => ({
@@ -156,19 +202,6 @@ export class ExamService {
             });
           }
         }
-      }
-    }
-
-    // Create reading texts
-    if (readingTexts && readingTexts.length > 0) {
-      for (const [index, text] of readingTexts.entries()) {
-        await this.prisma.readingText.create({
-          data: {
-            examId: exam.id,
-            content: text.content,
-            order: index,
-          },
-        });
       }
     }
 
@@ -285,7 +318,7 @@ export class ExamService {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-    let where: any = {
+    const where: any = {
       status: ExamStatus.PUBLISHED,
       publishedAt: {
         gte: threeDaysAgo, // Only show exams published in the last 3 days
@@ -376,6 +409,7 @@ export class ExamService {
             questions: {
               include: {
                 options: true,
+                readingText: true,
               },
             },
           },
@@ -386,6 +420,7 @@ export class ExamService {
         questions: {
           include: {
             options: true,
+            readingText: true,
           },
           orderBy: {
             order: 'asc',
@@ -417,10 +452,40 @@ export class ExamService {
       });
     }
 
+    // Combine all questions (from topics and regular questions) and map readingText
+    const allQuestions = [];
+
+    // Add questions from topics
+    if (exam.topics) {
+      exam.topics.forEach((topic) => {
+        if (topic.questions) {
+          allQuestions.push(...topic.questions);
+        }
+      });
+    }
+
+    // Add regular questions
+    if (exam.questions) {
+      allQuestions.push(...exam.questions);
+    }
+
+    // Map readingTextId to readingText object
+    if (exam.readingTexts && exam.readingTexts.length > 0) {
+      const readingTextsMap = new Map(
+        exam.readingTexts.map((rt) => [rt.id, rt]),
+      );
+      allQuestions.forEach((q: any) => {
+        if (q.readingTextId && !q.readingText) {
+          q.readingText = readingTextsMap.get(q.readingTextId) || null;
+        }
+      });
+    }
+
     // Add calculated price
     return {
       ...exam,
       price: this.calculatePrice(exam.duration),
+      allQuestions, // Add combined questions array
     };
   }
 
@@ -452,6 +517,40 @@ export class ExamService {
       data,
     });
 
+    // Delete and recreate reading texts first (so we can link questions to them)
+    const createdReadingTexts: { id: string; order: number }[] = [];
+    const tempIdToRealIdMap = new Map<string, string>(); // Map temp IDs to real IDs
+    if (readingTexts !== undefined) {
+      await this.prisma.readingText.deleteMany({
+        where: { examId: id },
+      });
+
+      if (readingTexts.length > 0) {
+        for (const [index, text] of readingTexts.entries()) {
+          const createdText = await this.prisma.readingText.create({
+            data: {
+              examId: id,
+              content: text.content,
+              order: index,
+            },
+          });
+          createdReadingTexts.push({ id: createdText.id, order: index });
+          // Map temp ID (like "temp_0") or order to real ID
+          tempIdToRealIdMap.set(`temp_${index}`, createdText.id);
+          tempIdToRealIdMap.set(index.toString(), createdText.id);
+        }
+      }
+    } else {
+      // If readingTexts is not being updated, get existing ones
+      const existingTexts = await this.prisma.readingText.findMany({
+        where: { examId: id },
+        orderBy: { order: 'asc' },
+      });
+      createdReadingTexts.push(
+        ...existingTexts.map((t) => ({ id: t.id, order: t.order })),
+      );
+    }
+
     // Delete existing questions and options if questions are being updated
     if (questions !== undefined) {
       // Get all questions for this exam
@@ -475,6 +574,18 @@ export class ExamService {
       // Create new questions
       if (questions.length > 0) {
         for (const [index, q] of questions.entries()) {
+          // Find reading text ID if readingTextId is provided
+          let readingTextId = q.readingTextId || undefined;
+          if (readingTextId) {
+            // If readingTextId is provided, validate it exists
+            const textExists = createdReadingTexts.find(
+              (rt) => rt.id === readingTextId,
+            );
+            if (!textExists) {
+              readingTextId = undefined;
+            }
+          }
+
           // Create question with options first to get option IDs
           const createdQuestion = await this.prisma.question.create({
             data: {
@@ -484,6 +595,7 @@ export class ExamService {
               order: index,
               points: 1, // All questions are 1 point
               modelAnswer: q.modelAnswer,
+              readingTextId: readingTextId,
               options: q.options
                 ? {
                     create: q.options.map((opt, oIndex) => ({
@@ -562,6 +674,18 @@ export class ExamService {
               // All questions are 1 point
               const questionPoints = 1;
 
+              // Find reading text ID if readingTextId is provided
+              let readingTextId = q.readingTextId || undefined;
+              if (readingTextId) {
+                // If readingTextId is provided, validate it exists
+                const textExists = createdReadingTexts.find(
+                  (rt) => rt.id === readingTextId,
+                );
+                if (!textExists) {
+                  readingTextId = undefined;
+                }
+              }
+
               // Create question with options first to get option IDs
               const createdQuestion = await this.prisma.question.create({
                 data: {
@@ -572,6 +696,7 @@ export class ExamService {
                   order: qIndex,
                   points: questionPoints,
                   modelAnswer: q.modelAnswer,
+                  readingTextId: readingTextId,
                   options: q.options
                     ? {
                         create: q.options.map((opt, oIndex) => ({
@@ -613,25 +738,6 @@ export class ExamService {
               }
             }
           }
-        }
-      }
-    }
-
-    // Delete and recreate reading texts if readingTexts are being updated
-    if (readingTexts !== undefined) {
-      await this.prisma.readingText.deleteMany({
-        where: { examId: id },
-      });
-
-      if (readingTexts.length > 0) {
-        for (const [index, text] of readingTexts.entries()) {
-          await this.prisma.readingText.create({
-            data: {
-              examId: id,
-              content: text.content,
-              order: index,
-            },
-          });
         }
       }
     }

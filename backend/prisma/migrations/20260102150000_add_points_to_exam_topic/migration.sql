@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "exam_topics" ADD COLUMN "points" DOUBLE PRECISION NOT NULL DEFAULT 1;
-

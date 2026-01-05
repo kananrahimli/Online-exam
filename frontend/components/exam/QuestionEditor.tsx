@@ -1,4 +1,9 @@
-import { UseFieldArrayReturn, UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
+import {
+  UseFieldArrayReturn,
+  UseFormRegister,
+  FieldErrors,
+  UseFormWatch,
+} from "react-hook-form";
 import { QuestionType } from "@/lib/types";
 
 interface QuestionEditorProps {
@@ -24,13 +29,15 @@ export default function QuestionEditor({
     <div className="border-t pt-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-bold text-gray-900">Suallar</h3>
-        <button
-          type="button"
-          onClick={onAppend}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
-        >
-          + Sual Əlavə Et
-        </button>
+        {fields.length === 0 && (
+          <button
+            type="button"
+            onClick={onAppend}
+            className="px-4 py-2 mt-4 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
+          >
+            + Sual Əlavə Et
+          </button>
+        )}
       </div>
 
       {fields.length === 0 ? (
@@ -44,7 +51,8 @@ export default function QuestionEditor({
         <div className="space-y-6">
           {fields.map((field, index) => {
             const questionType = watch(`questions.${index}.type`);
-            const isMultipleChoice = questionType === QuestionType.MULTIPLE_CHOICE;
+            const isMultipleChoice =
+              questionType === QuestionType.MULTIPLE_CHOICE;
 
             return (
               <div
@@ -52,7 +60,9 @@ export default function QuestionEditor({
                 className="border border-gray-200 rounded-lg p-6 bg-gray-50"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <h4 className="font-semibold text-gray-900">Sual {index + 1}</h4>
+                  <h4 className="font-semibold text-gray-900">
+                    Sual {index + 1}
+                  </h4>
                   <button
                     type="button"
                     onClick={() => onRemove(index)}
@@ -103,8 +113,8 @@ export default function QuestionEditor({
                           <option value="">Mətn seçilməyib</option>
                           {readingTextFields.map((rt, rtIndex) => {
                             // Use temp_ format for create page compatibility
-                            const tempId = rt.id?.startsWith('temp_') 
-                              ? rt.id 
+                            const tempId = rt.id?.startsWith("temp_")
+                              ? rt.id
                               : `temp_${rtIndex}`;
                             return (
                               <option key={rt.id || tempId} value={tempId}>
@@ -158,14 +168,21 @@ export default function QuestionEditor({
                       </label>
                       <div className="space-y-2">
                         {[0, 1, 2, 3].map((optIndex) => (
-                          <div key={optIndex} className="flex items-center space-x-2">
+                          <div
+                            key={optIndex}
+                            className="flex items-center space-x-2"
+                          >
                             <span className="w-8 text-sm font-medium text-gray-700">
                               {String.fromCharCode(65 + optIndex)}.
                             </span>
                             <input
-                              {...register(`questions.${index}.options.${optIndex}.content`)}
+                              {...register(
+                                `questions.${index}.options.${optIndex}.content`
+                              )}
                               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                              placeholder={`Variant ${String.fromCharCode(65 + optIndex)}`}
+                              placeholder={`Variant ${String.fromCharCode(
+                                65 + optIndex
+                              )}`}
                             />
                             <input
                               type="radio"
@@ -173,7 +190,9 @@ export default function QuestionEditor({
                               value={optIndex.toString()}
                               className="w-5 h-5 text-indigo-600"
                             />
-                            <span className="text-sm text-gray-600">Düzgün</span>
+                            <span className="text-sm text-gray-600">
+                              Düzgün
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -214,7 +233,15 @@ export default function QuestionEditor({
           })}
         </div>
       )}
+      {fields.length !== 0 && (
+        <button
+          type="button"
+          onClick={onAppend}
+          className="px-4 py-2 mt-4 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-all"
+        >
+          + Sual Əlavə Et
+        </button>
+      )}
     </div>
   );
 }
-

@@ -17,10 +17,14 @@ CREATE TYPE "ExamAttemptStatus" AS ENUM ('IN_PROGRESS', 'COMPLETED', 'TIMED_OUT'
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
+    "phone" TEXT,
     "password" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "role" "UserRole" NOT NULL DEFAULT 'STUDENT',
+    "balance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "resetToken" TEXT,
+    "resetTokenExpires" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -35,7 +39,6 @@ CREATE TABLE "exams" (
     "subject" TEXT NOT NULL,
     "level" TEXT NOT NULL,
     "status" "ExamStatus" NOT NULL DEFAULT 'DRAFT',
-    "price" DOUBLE PRECISION NOT NULL DEFAULT 5.0,
     "duration" INTEGER NOT NULL,
     "version" INTEGER NOT NULL DEFAULT 1,
     "teacherId" TEXT NOT NULL,
@@ -47,11 +50,23 @@ CREATE TABLE "exams" (
 );
 
 -- CreateTable
+CREATE TABLE "teacher_students" (
+    "id" TEXT NOT NULL,
+    "teacherId" TEXT NOT NULL,
+    "studentId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "teacher_students_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "exam_topics" (
     "id" TEXT NOT NULL,
     "examId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
     "order" INTEGER NOT NULL,
+    "points" DOUBLE PRECISION NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "exam_topics_pkey" PRIMARY KEY ("id")
@@ -73,6 +88,7 @@ CREATE TABLE "questions" (
     "id" TEXT NOT NULL,
     "examId" TEXT NOT NULL,
     "topicId" TEXT,
+    "readingTextId" TEXT,
     "type" "QuestionType" NOT NULL,
     "content" TEXT NOT NULL,
     "order" INTEGER NOT NULL,
@@ -167,7 +183,7 @@ CREATE TABLE "answers" (
 CREATE TABLE "payments" (
     "id" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
-    "examId" TEXT NOT NULL,
+    "examId" TEXT,
     "attemptId" TEXT,
     "amount" DOUBLE PRECISION NOT NULL,
     "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
@@ -181,6 +197,12 @@ CREATE TABLE "payments" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_phone_key" ON "users"("phone");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "teacher_students_teacherId_studentId_key" ON "teacher_students"("teacherId", "studentId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "exam_topics_examId_order_key" ON "exam_topics"("examId", "order");
@@ -207,6 +229,12 @@ CREATE UNIQUE INDEX "payments_transactionId_key" ON "payments"("transactionId");
 ALTER TABLE "exams" ADD CONSTRAINT "exams_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "teacher_students" ADD CONSTRAINT "teacher_students_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "teacher_students" ADD CONSTRAINT "teacher_students_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "exam_topics" ADD CONSTRAINT "exam_topics_examId_fkey" FOREIGN KEY ("examId") REFERENCES "exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -217,6 +245,9 @@ ALTER TABLE "questions" ADD CONSTRAINT "questions_examId_fkey" FOREIGN KEY ("exa
 
 -- AddForeignKey
 ALTER TABLE "questions" ADD CONSTRAINT "questions_topicId_fkey" FOREIGN KEY ("topicId") REFERENCES "exam_topics"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "questions" ADD CONSTRAINT "questions_readingTextId_fkey" FOREIGN KEY ("readingTextId") REFERENCES "reading_texts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "options" ADD CONSTRAINT "options_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "questions"("id") ON DELETE CASCADE ON UPDATE CASCADE;

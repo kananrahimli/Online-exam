@@ -204,9 +204,7 @@ export default function CreateExamPage() {
 
       const response = await api.post(API_ENDPOINTS.EXAMS.LIST, examData);
 
-      // Only redirect on success
       if (response.data) {
-        // Redirect based on user role
         const currentUser = useAuthStore.getState().user;
         if (currentUser?.role === "TEACHER") {
           // Teachers should go to their exams list at /exams/my-exams
@@ -282,18 +280,13 @@ export default function CreateExamPage() {
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-gray-200">
           <form
             onSubmit={handleSubmit(onSubmit, (errors) => {
+              console.log(errors);
               setError(
                 "Formda xətalar var. Zəhmət olmasa bütün tələb olunan sahələri doldurun."
               );
             })}
             className="space-y-6"
           >
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg">
-                <p className="font-medium">{error}</p>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -429,6 +422,12 @@ export default function CreateExamPage() {
               onAppend={addQuestion}
               onRemove={removeQuestion}
             />
+
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg">
+                <p className="font-medium">{error}</p>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-4 pt-6 border-t">
               <Link

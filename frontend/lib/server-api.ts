@@ -26,7 +26,8 @@ export async function fetchServerAPI<T>(
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers,
-    cache: options.cache || "no-store", // Default: no cache for authenticated requests
+    cache: options.cache || "force-cache",
+    next: options.next,
   });
 
   if (!response.ok) {
@@ -34,7 +35,9 @@ export async function fetchServerAPI<T>(
       // Unauthorized - token is invalid
       throw new Error("UNAUTHORIZED");
     }
-    const error = await response.json().catch(() => ({ message: "Xəta baş verdi" }));
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Xəta baş verdi" }));
     throw new Error(error.message || "Xəta baş verdi");
   }
 

@@ -1,5 +1,4 @@
 import { getServerUser, fetchServerAPI } from "@/lib/server-api";
-import { requireAuth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import ProfileClient from "./profile-client";
 
@@ -10,12 +9,8 @@ interface Teacher {
   email: string;
 }
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default async function ProfileServerWrapper() {
   try {
-    const session = await requireAuth();
     const user = await getServerUser();
 
     if (!user) {
@@ -31,7 +26,9 @@ export default async function ProfileServerWrapper() {
         const teachersResponse = await fetchServerAPI<{
           allTeachers: Teacher[];
           myTeachers: Teacher[];
-        }>("/teacher-student/teachers");
+        }>("/teacher-student/teachers", {
+          next: { tags: ["teachers"] },
+        });
         allTeachers = teachersResponse.allTeachers || [];
         myTeachers = teachersResponse.myTeachers || [];
       } catch (err) {

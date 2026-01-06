@@ -23,9 +23,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Force dynamic rendering for this page
-export const dynamic = "force-dynamic";
-
 export default function Home() {
   // Structured Data (JSON-LD) for SEO
   const jsonLd = {

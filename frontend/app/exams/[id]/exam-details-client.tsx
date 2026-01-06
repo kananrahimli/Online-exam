@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { Exam } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
+import { ROUTES } from "@/lib/constants/routes";
 
 interface ExamDetailsClientProps {
   initialExam: Exam;
@@ -163,7 +164,7 @@ export default function ExamDetailsClient({
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <Link
-              href="/exams"
+              href={ROUTES.DASHBOARD}
               aria-label="İdarə panelinə qayıt"
               className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
             >

@@ -45,7 +45,13 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                 href="/dashboard"
                 className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
               >
-                <span className="text-white font-bold text-lg" role="img" aria-label="İmtahan kağızı">📝</span>
+                <span
+                  className="text-white font-bold text-lg"
+                  role="img"
+                  aria-label="İmtahan kağızı"
+                >
+                  📝
+                </span>
               </Link>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Online İmtahan
@@ -91,7 +97,10 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
         )}
         <div className="mb-8">
           <h2 className="text-4xl font-bold text-gray-900 mb-2">
-            Xoş gəlmisiniz! <span role="img" aria-label="Əl salama">👋</span>
+            Xoş gəlmisiniz!{" "}
+            <span role="img" aria-label="Əl salama">
+              👋
+            </span>
           </h2>
           <p className="text-gray-600 text-lg">
             Sadə, intuitiv və sürətli - bütün imtahanlarınız bir yerdə
@@ -100,7 +109,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
 
         {initialUser.role === UserRole.STUDENT && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Link
+            <Link
               href="/exams"
               aria-label="Mövcud imtahanlara keç"
               className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
@@ -108,7 +117,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="Kitab">📚</span>
+                  <span className="text-2xl" role="img" aria-label="Kitab">
+                    📚
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   Mövcud İmtahanlar
@@ -130,7 +141,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="İmtahan">📝</span>
+                  <span className="text-2xl" role="img" aria-label="İmtahan">
+                    📝
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">
                   İmtahanlarım
@@ -152,7 +165,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="Statistika">📊</span>
+                  <span className="text-2xl" role="img" aria-label="Statistika">
+                    📊
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-green-600 transition-colors">
                   Nəticələr
@@ -174,7 +189,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-pink-400 to-pink-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="İstifadəçi">👤</span>
+                  <span className="text-2xl" role="img" aria-label="İstifadəçi">
+                    👤
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-pink-600 transition-colors">
                   Şəxsi məlumatlar
@@ -198,7 +215,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="Əlavə et">➕</span>
+                  <span className="text-2xl" role="img" aria-label="Əlavə et">
+                    ➕
+                  </span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">
                   Yeni İmtahan
@@ -215,7 +234,9 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
               <div className="relative z-10">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <span className="text-2xl" role="img" aria-label="Siyahı">📋</span>
+                  <span className="text-2xl" role="img" aria-label="Siyahı">
+                    📋
+                  </span>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   İmtahanlarım

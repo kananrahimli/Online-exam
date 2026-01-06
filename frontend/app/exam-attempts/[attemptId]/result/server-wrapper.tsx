@@ -3,9 +3,6 @@ import { requireAuth, requireRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import ExamResultClient from "./exam-result-client";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 interface ExamResultServerWrapperProps {
   params: {
     attemptId: string;

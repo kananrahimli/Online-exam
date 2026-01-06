@@ -1,10 +1,7 @@
 import { getServerUser, fetchServerAPI } from "@/lib/server-api";
-import { requireAuth, requireRole } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import AnalyticsClient from "./analytics-client";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 interface ExamStats {
   examId: string;
@@ -26,7 +23,6 @@ interface SummaryData {
 
 export default async function AnalyticsServerWrapper() {
   try {
-    const session = await requireAuth();
     await requireRole("TEACHER");
     const user = await getServerUser();
 

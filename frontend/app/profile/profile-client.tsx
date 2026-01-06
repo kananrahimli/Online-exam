@@ -8,6 +8,7 @@ import Link from "next/link";
 import TeacherMultiSelect from "@/components/TeacherMultiSelect";
 import { UserRole } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
+import { saveTeachers } from "@/actions/teachers";
 
 interface Teacher {
   id: string;
@@ -164,25 +165,19 @@ export default function ProfileClient({
       const toRemove = currentTeacherIds.filter(
         (id) => !selectedTeachers.includes(id)
       );
+      await saveTeachers(toAdd, toRemove);
+      router.refresh();
 
-      for (const teacherId of toAdd) {
-        await api.post(`/teacher-student/${teacherId}/follow`);
-      }
-
-      for (const teacherId of toRemove) {
-        await api.delete(`/teacher-student/${teacherId}/unfollow`);
-      }
+      // // Refresh teachers
+      // const response = await api.get("/teacher-student/teachers");
+      // const { myTeachers: myTeachersData } = response.data;
+      // setMyTeachers(myTeachersData);
+      // setSelectedTeachers(myTeachersData.map((t: Teacher) => t.id));
 
       setMessage({
         type: "success",
         text: "Müəllimləriniz uğurla yeniləndi",
       });
-
-      // Refresh teachers
-      const response = await api.get("/teacher-student/teachers");
-      const { myTeachers: myTeachersData } = response.data;
-      setMyTeachers(myTeachersData);
-      setSelectedTeachers(myTeachersData.map((t: Teacher) => t.id));
     } catch (err: any) {
       setMessage({
         type: "error",

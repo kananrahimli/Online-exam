@@ -4,9 +4,6 @@ import { redirect } from "next/navigation";
 import ExamDetailsClient from "./exam-details-client";
 import { Exam } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 interface ExamDetailsServerWrapperProps {
   params: {
     id: string;
@@ -30,7 +27,9 @@ export default async function ExamDetailsServerWrapper({
     // Fetch exam and balance server-side
     const [examResponse, balanceResponse] = await Promise.all([
       fetchServerAPI<Exam>(`/exams/${examId}`).catch(() => null),
-      fetchServerAPI<{ balance: number }>("/auth/balance").catch(() => ({ balance: 0 })),
+      fetchServerAPI<{ balance: number }>("/auth/balance").catch(() => ({
+        balance: 0,
+      })),
     ]);
 
     if (!examResponse) {

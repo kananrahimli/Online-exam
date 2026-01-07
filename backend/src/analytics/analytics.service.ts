@@ -302,8 +302,12 @@ export class AnalyticsService {
       sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : 'asc';
     const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
 
+    // Yalnız yayımlanmış imtahanları gətir
     const exams = await this.prisma.exam.findMany({
-      where: { teacherId },
+      where: { 
+        teacherId,
+        publishedAt: { not: null }, // Yalnız yayımlanmış imtahanlar
+      },
       include: {
         attempts: {
           include: {
@@ -377,7 +381,8 @@ export class AnalyticsService {
         createdAt: formattedDate,
         createdAtTime: formattedTime,
       };
-    });
+    })
+    .filter((stat) => stat.totalAttempts > 0); // Yalnız cəhd sayı 0-dan böyük olan imtahanlar
 
     const totalAttempts = stats.reduce((sum, s) => sum + s.totalAttempts, 0);
     const overallAverage =
@@ -385,12 +390,18 @@ export class AnalyticsService {
         ? stats.reduce((sum, s) => sum + s.averageScore, 0) / stats.length
         : 0;
 
+    // Yalnız filtr edilmiş imtahanların tələbələrini say
+    const filteredExamIds = new Set(stats.map((s) => s.examId));
+    const filteredExams = exams.filter((exam) =>
+      filteredExamIds.has(exam.id),
+    );
+
     return {
-      totalExams: exams.length,
+      totalExams: stats.length, // Filtr edilmiş imtahanların sayı
       totalAttempts,
       overallAverage: parseFloat(overallAverage.toFixed(2)),
       totalStudents: new Set(
-        exams.flatMap((exam) => exam.attempts.map((a) => a.studentId)),
+        filteredExams.flatMap((exam) => exam.attempts.map((a) => a.studentId)),
       ).size,
       examStats: stats,
     };

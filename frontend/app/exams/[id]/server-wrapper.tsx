@@ -1,5 +1,5 @@
 import { getServerUser, fetchServerAPI } from "@/lib/server-api";
-import { requireAuth, requireRole } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import ExamDetailsClient from "./exam-details-client";
 import { Exam } from "@/lib/types";
@@ -14,7 +14,6 @@ export default async function ExamDetailsServerWrapper({
   params,
 }: ExamDetailsServerWrapperProps) {
   try {
-    const session = await requireAuth();
     await requireRole("STUDENT");
     const user = await getServerUser();
 
@@ -27,7 +26,9 @@ export default async function ExamDetailsServerWrapper({
     // Fetch exam and balance server-side
     const [examResponse, balanceResponse] = await Promise.all([
       fetchServerAPI<Exam>(`/exams/${examId}`).catch(() => null),
-      fetchServerAPI<{ balance: number }>("/auth/balance").catch(() => ({
+      fetchServerAPI<{ balance: number }>("/auth/balance", {
+        cache: "no-store",
+      }).catch(() => ({
         balance: 0,
       })),
     ]);

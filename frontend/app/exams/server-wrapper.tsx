@@ -26,7 +26,7 @@ export default async function ExamsServerWrapper() {
     // Fetch data server-side
     const [examsResponse, teachersResponse] = await Promise.all([
       fetchServerAPI<Exam[]>("/exams/published", {
-        next: { revalidate: 2 },
+        next: { tags: ["exams"] },
       }),
       fetchServerAPI<{ allTeachers: Teacher[]; myTeachers: Teacher[] }>(
         "/teacher-student/teachers",

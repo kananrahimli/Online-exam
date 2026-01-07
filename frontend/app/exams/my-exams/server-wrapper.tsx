@@ -15,9 +15,9 @@ export default async function TeacherMyExamsServerWrapper() {
     }
 
     // Fetch exams server-side (no status filter for initial load)
-    const exams = await fetchServerAPI<Exam[]>("/exams/my-exams").catch(
-      () => []
-    );
+    const exams = await fetchServerAPI<Exam[]>("/exams/my-exams", {
+      next: { tags: ["exams"] },
+    }).catch(() => []);
 
     return <TeacherMyExamsClient initialExams={exams} initialUser={user} />;
   } catch (error) {

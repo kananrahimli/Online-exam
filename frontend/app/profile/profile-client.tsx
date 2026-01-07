@@ -8,7 +8,7 @@ import Link from "next/link";
 import TeacherMultiSelect from "@/components/TeacherMultiSelect";
 import { UserRole } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
-import { saveTeachers } from "@/actions/teachers";
+import { saveTeachers } from "@/lib/actions/teachers";
 
 interface Teacher {
   id: string;

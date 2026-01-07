@@ -34,7 +34,10 @@ export default async function MyExamsServerWrapper() {
 
     // Fetch attempts server-side
     const attempts = await fetchServerAPI<ExamAttemptWithExam[]>(
-      "/exam-attempts/my-attempts"
+      "/exam-attempts/my-attempts",
+      {
+        next: { revalidate: 60, tags: ["exams"] },
+      }
     ).catch(() => []);
 
     return <MyExamsClient initialAttempts={attempts} initialUser={user} />;

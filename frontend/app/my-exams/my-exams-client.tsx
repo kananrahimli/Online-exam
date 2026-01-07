@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { formatDate, formatTime } from "@/lib/utils";
-import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 
 interface ExamAttemptWithExam {
   id: string;
@@ -38,7 +37,6 @@ export default function MyExamsClient({
   initialAttempts,
   initialUser,
 }: MyExamsClientProps) {
-  const router = useRouter();
   const { setUser } = useAuthStore();
   const [attempts] = useState<ExamAttemptWithExam[]>(initialAttempts);
 
@@ -201,7 +199,9 @@ export default function MyExamsClient({
                           className="text-sm font-semibold text-gray-900"
                           suppressHydrationWarning
                         >
-                          {attempt.startedAt ? formatDate(attempt.startedAt) : "-"}
+                          {attempt.startedAt
+                            ? formatDate(attempt.startedAt)
+                            : "-"}
                         </p>
                         {attempt.startedAt && (
                           <p

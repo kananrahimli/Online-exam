@@ -11,7 +11,8 @@ import Link from "next/link";
 import { QuestionType } from "@/lib/types";
 import ReadingTextEditor from "@/components/exam/ReadingTextEditor";
 import QuestionEditor from "@/components/exam/QuestionEditor";
-import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { ROUTES } from "@/lib/constants/routes";
+import { createExamAction } from "@/lib/actions/exams";
 
 const examSchema = z.object({
   title: z.string().min(3, "Başlıq minimum 3 simvoldan ibarət olmalıdır"),
@@ -202,9 +203,10 @@ export default function CreateExamPage() {
             : [],
       };
 
-      const response = await api.post(API_ENDPOINTS.EXAMS.LIST, examData);
+      // const response = await api.post(API_ENDPOINTS.EXAMS.LIST, examData);
+      const response = (await createExamAction(examData)) as any;
 
-      if (response.data) {
+      if (response.success) {
         const currentUser = useAuthStore.getState().user;
         if (currentUser?.role === "TEACHER") {
           // Teachers should go to their exams list at /exams/my-exams

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/lib/api";
 import { Exam, ExamStatus } from "@/lib/types";
 import Link from "next/link";
 import { useAlert } from "@/hooks/useAlert";
+import { deleteExamAction, publishExamAction } from "@/lib/actions/exams";
 
 interface TeacherMyExamsClientProps {
   initialExams: Exam[];
@@ -17,11 +17,12 @@ export default function TeacherMyExamsClient({
   initialExams,
   initialUser,
 }: TeacherMyExamsClientProps) {
-  const router = useRouter();
   const { setUser } = useAuthStore();
   const { showAlert, showConfirm, AlertComponent } = useAlert();
   const [exams, setExams] = useState<Exam[]>(initialExams);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialUser) {
@@ -51,8 +52,9 @@ export default function TeacherMyExamsClient({
   };
 
   const handlePublish = async (examId: string) => {
+    setPublishingId(examId);
     try {
-      await api.post(`/exams/${examId}/publish`);
+      await publishExamAction(examId);
       fetchExams();
       showAlert({
         message: "İmtahan uğurla yayımlandı!",
@@ -61,10 +63,12 @@ export default function TeacherMyExamsClient({
       });
     } catch (err: any) {
       showAlert({
-        message: err.response?.data?.message || "Xəta baş verdi",
+        message: err?.message || "Xəta baş verdi",
         type: "error",
         confirmButtonText: "Tamam",
       });
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -79,8 +83,9 @@ export default function TeacherMyExamsClient({
 
     if (!confirmed) return;
 
+    setDeletingId(examId);
     try {
-      await api.delete(`/exams/${examId}`);
+      await deleteExamAction(examId);
       fetchExams();
       showAlert({
         message: "İmtahan uğurla silindi!",
@@ -93,6 +98,8 @@ export default function TeacherMyExamsClient({
         type: "error",
         confirmButtonText: "Tamam",
       });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -107,7 +114,9 @@ export default function TeacherMyExamsClient({
               aria-label="İdarə panelinə qayıt"
               className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
             >
-              <span className="text-xl" aria-hidden="true">←</span>
+              <span className="text-xl" aria-hidden="true">
+                ←
+              </span>
               <span>İdarə panelinə qayıt</span>
             </Link>
             <div className="flex justify-between items-center">
@@ -210,11 +219,28 @@ export default function TeacherMyExamsClient({
                         {exam.description || "Təsvir yoxdur"}
                       </p>
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span><span role="img" aria-label="Kitab">📚</span> {exam.subject}</span>
-                        <span><span role="img" aria-label="Statistika">📊</span> {exam.level}</span>
-                        <span><span role="img" aria-label="Vaxt">⏱️</span> {exam.duration} dəq</span>
                         <span>
-                          <span role="img" aria-label="Pul">💰</span>{" "}
+                          <span role="img" aria-label="Kitab">
+                            📚
+                          </span>{" "}
+                          {exam.subject}
+                        </span>
+                        <span>
+                          <span role="img" aria-label="Statistika">
+                            📊
+                          </span>{" "}
+                          {exam.level}
+                        </span>
+                        <span>
+                          <span role="img" aria-label="Vaxt">
+                            ⏱️
+                          </span>{" "}
+                          {exam.duration} dəq
+                        </span>
+                        <span>
+                          <span role="img" aria-label="Pul">
+                            💰
+                          </span>{" "}
                           {exam.price ||
                             (exam.duration === 60
                               ? 3
@@ -240,16 +266,74 @@ export default function TeacherMyExamsClient({
                     {exam.status === ExamStatus.DRAFT && (
                       <button
                         onClick={() => handlePublish(exam.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all"
+                        disabled={
+                          publishingId === exam.id || deletingId === exam.id
+                        }
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        Yayımla
+                        {publishingId === exam.id ? (
+                          <>
+                            <svg
+                              className="animate-spin h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Yayımlanır...
+                          </>
+                        ) : (
+                          "Yayımla"
+                        )}
                       </button>
                     )}
                     <button
                       onClick={() => handleDelete(exam.id)}
-                      className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-all"
+                      disabled={
+                        publishingId === exam.id || deletingId === exam.id
+                      }
+                      className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Sil
+                      {deletingId === exam.id ? (
+                        <>
+                          <svg
+                            className="animate-spin h-4 w-4 text-red-700"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Silinir...
+                        </>
+                      ) : (
+                        "Sil"
+                      )}
                     </button>
                   </div>
                 </div>

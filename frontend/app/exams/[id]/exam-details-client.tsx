@@ -39,30 +39,11 @@ export default function ExamDetailsClient({
 
   // Balansı yenilə səhifə fokus aldıqda
   useEffect(() => {
-    const handleFocus = () => {
-      fetchBalance();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchBalance();
-      }
-    };
-
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    fetchBalance();
   }, []);
 
   const handleStartExamClick = async () => {
     if (!exam) return;
-
-    // Balansı yenilə
-    await fetchBalance();
 
     const examPrice = calculatePrice(exam.duration);
 
@@ -98,7 +79,6 @@ export default function ExamDetailsClient({
         err.response?.data?.message || "İmtahan başlatmaq mümkün olmadı";
       setStartError(errorMessage);
 
-      // Balansı yenilə
       await fetchBalance();
     } finally {
       setStarting(false);

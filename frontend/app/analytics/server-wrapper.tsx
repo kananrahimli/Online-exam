@@ -32,7 +32,8 @@ export default async function AnalyticsServerWrapper() {
 
     // Fetch summary stats server-side with sorting by createdAt (newest to oldest)
     const summaryData = await fetchServerAPI<SummaryData>(
-      "/analytics/summary?sortBy=createdAt&sortOrder=desc"
+      "/analytics/summary?sortBy=createdAt&sortOrder=desc",
+      { next: { revalidate: 60, tags: ["exams"] } }
     ).catch(() => ({
       examStats: [],
       totalExams: 0,

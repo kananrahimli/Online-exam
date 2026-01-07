@@ -12,6 +12,7 @@ import { QuestionType } from "@/lib/types";
 import ReadingTextEditor from "@/components/exam/ReadingTextEditor";
 import QuestionEditor from "@/components/exam/QuestionEditor";
 import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
+import { updateExamAction } from "@/lib/actions/exams";
 
 const examSchema = z.object({
   title: z.string().min(3, "Başlıq minimum 3 simvoldan ibarət olmalıdır"),
@@ -320,13 +321,10 @@ export default function EditExamPage() {
             : [],
       };
 
-      console.log("Sending exam data:", examData);
-      const response = await api.put(
-        API_ENDPOINTS.EXAMS.UPDATE(examId),
-        examData
-      );
-      console.log("Response:", response);
-      router.push(ROUTES.MY_EXAMS);
+      const response = await updateExamAction(examId, examData);
+      if (response.success) {
+        router.push("/exams/my-exams");
+      }
     } catch (err: any) {
       console.error("Error updating exam:", err);
       const errorMessage =

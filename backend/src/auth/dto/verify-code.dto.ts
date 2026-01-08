@@ -7,4 +7,3 @@ export class VerifyCodeDto {
   @IsString()
   code: string; // Verification code
 }
-

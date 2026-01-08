@@ -51,6 +51,13 @@ export default function ProfileClient({
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState("");
   const [addingBalance, setAddingBalance] = useState(false);
+  const [balances, setBalances] = useState<any>(null);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
 
   // Current user state (may be updated)
   const currentUser = user || initialUser;
@@ -60,7 +67,153 @@ export default function ProfileClient({
     if (initialUser) {
       setUser(initialUser);
     }
-  }, [initialUser, setUser]);
+    // Balansları yüklə
+    fetchBalances();
+    if (currentUser?.role === "TEACHER" || currentUser?.role === "ADMIN") {
+      fetchWithdrawals();
+    }
+  }, [initialUser, setUser, currentUser]);
+
+  const fetchBalances = async () => {
+    try {
+      const response = await api.get("/payments/balances");
+      setBalances(response.data);
+    } catch (err) {
+      console.error("Error fetching balances:", err);
+    }
+  };
+
+  const fetchWithdrawals = async () => {
+    try {
+      const response = await api.get("/payments/withdrawals");
+      setWithdrawals(response.data);
+    } catch (err) {
+      console.error("Error fetching withdrawals:", err);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
+      setMessage({
+        type: "error",
+        text: "Zəhmət olmasa düzgün məbləğ daxil edin",
+      });
+      return;
+    }
+
+    // if (
+    //   currentUser?.role === "TEACHER"
+    //   // parseFloat(withdrawAmount) < 30
+    // ) {
+    //   setMessage({
+    //     type: "error",
+    //     text: "Müəllimlər üçün minimum çıxarış məbləği 30 AZN-dir",
+    //   });
+    //   return;
+    // }
+
+    setWithdrawing(true);
+    setMessage(null);
+
+    try {
+      // Əvvəlcə Stripe statusunu yoxla
+      const statusResponse = await api.get("/teacher/stripe/status");
+      const stripeStatus = statusResponse.data;
+
+      // Əgər verify olunmayıbsa, onboarding linkinə yönləndir
+      if (
+        !stripeStatus.connected ||
+        !stripeStatus.payoutsEnabled ||
+        !stripeStatus.detailsSubmitted
+      ) {
+        // Onboarding linki al
+        const onboardingResponse = await api.get(
+          "/teacher/stripe/onboarding-link"
+        );
+        const onboardingUrl = onboardingResponse.data.url;
+
+        setMessage({
+          type: "error",
+          text: "Stripe hesabınızı verify etməlisiniz. Sizi onboarding səhifəsinə yönləndiririk...",
+        });
+
+        // 2 saniyə sonra yönləndir
+        setTimeout(() => {
+          window.location.href = onboardingUrl;
+        }, 2000);
+        setWithdrawing(false);
+        return;
+      }
+
+      // Verify olunubsa, birbaşa withdrawal et
+      const endpoint =
+        currentUser?.role === "TEACHER"
+          ? "/payments/withdraw/teacher"
+          : "/payments/withdraw/admin";
+      const response = await api.post(endpoint, {
+        amount: parseFloat(withdrawAmount),
+        // bankAccount və bankName artıq göndərilmir
+      });
+
+      // Response-da status yoxla
+      const withdrawal = response.data;
+      if (withdrawal?.status === "COMPLETED") {
+        setMessage({
+          type: "success",
+          text:
+            currentUser?.role === "ADMIN"
+              ? "Pul uğurla çıxarıldı"
+              : "Pul uğurla çıxarıldı və Stripe hesabınıza köçürüldü",
+        });
+      } else if (withdrawal?.status === "PENDING") {
+        setMessage({
+          type: "error",
+          text: "Çıxarış sorğusu göndərildi, amma Stripe transfer uğursuz oldu. Sorğu gözləmədədir və tezliklə həll olunacaq.",
+        });
+      } else {
+        setMessage({
+          type: "success",
+          text:
+            currentUser?.role === "ADMIN"
+              ? "Pul uğurla çıxarıldı"
+              : "Pul uğurla çıxarıldı və Stripe hesabınıza köçürüldü",
+        });
+      }
+
+      setShowWithdrawModal(false);
+      setWithdrawAmount("");
+      setBankAccount("");
+      setBankName("");
+
+      await fetchBalances();
+      await fetchWithdrawals();
+    } catch (err: any) {
+      console.error("Withdrawal error:", err);
+      const errorMessage =
+        err.response?.data?.message || "Çıxarış zamanı xəta baş verdi";
+
+      // Əgər error mesajında "gözləmədədir" varsa, bu PENDING withdrawal deməkdir
+      if (
+        errorMessage.includes("gözləmədədir") ||
+        errorMessage.includes("PENDING")
+      ) {
+        setMessage({
+          type: "error",
+          text: errorMessage,
+        });
+        // Balansları yenilə ki, withdrawal görünsün
+        await fetchBalances();
+        await fetchWithdrawals();
+      } else {
+        setMessage({
+          type: "error",
+          text: errorMessage,
+        });
+      }
+    } finally {
+      setWithdrawing(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!currentUser) return;
@@ -100,45 +253,11 @@ export default function ProfileClient({
         amount: parseFloat(balanceAmount),
       });
 
-      const confirmed = await showConfirm({
-        message: `${parseFloat(balanceAmount).toFixed(
-          2
-        )} AZN məbləğində ödəniş etmək istədiyinizə əminsiniz?`,
-        type: "warning",
-        confirmButtonText: "Bəli, ödəniş et",
-        cancelButtonText: "Ləğv et",
-        onConfirm: () => {},
-      });
-
-      if (!confirmed) {
-        setMessage({
-          type: "error",
-          text: "Ödəniş ləğv edildi",
-        });
-        return;
-      }
-
-      const verifyResponse = await api.post(
-        `/payments/verify/${response.data.paymentId}`
-      );
-
-      if (verifyResponse.data && verifyResponse.data.message) {
-        const updatedUser = await api.get("/auth/me");
-        setUser(updatedUser.data);
-
-        setShowAddBalanceModal(false);
-        setBalanceAmount("");
-
-        setMessage({
-          type: "success",
-          text: `Ödəniş uğurlu oldu! ${parseFloat(balanceAmount).toFixed(
-            2
-          )} AZN balansınıza əlavə edildi.`,
-        });
-
-        setTimeout(() => {
-          router.push("/dashboard?balanceAdded=true");
-        }, 2000);
+      // Stripe checkout URL-inə yönləndir
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      } else {
+        throw new Error("Ödəniş URL-i alına bilmədi");
       }
     } catch (err: any) {
       console.error("Payment error:", err);
@@ -146,7 +265,6 @@ export default function ProfileClient({
         type: "error",
         text: err.response?.data?.message || "Ödəniş zamanı xəta baş verdi",
       });
-    } finally {
       setAddingBalance(false);
     }
   };
@@ -417,7 +535,10 @@ export default function ProfileClient({
                 </h2>
                 <div className="mb-4">
                   <div className="text-4xl font-bold text-indigo-600 mb-2">
-                    {(currentUser?.balance || 0).toFixed(2)} AZN
+                    {(balances?.balance || currentUser?.balance || 0).toFixed(
+                      2
+                    )}{" "}
+                    AZN
                   </div>
                   <p className="text-sm text-gray-500 italic">
                     <span role="img" aria-label="İpucu">
@@ -435,6 +556,137 @@ export default function ProfileClient({
                     ➕
                   </span>
                 </button>
+              </div>
+            )}
+
+            {/* Teacher Balance Section */}
+            {currentUser?.role === "TEACHER" && (
+              <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Müəllim Balansı{" "}
+                  <span role="img" aria-label="Pul">
+                    💰
+                  </span>
+                </h2>
+                <div className="mb-4">
+                  <div className="text-4xl font-bold text-green-600 mb-2">
+                    {(balances?.teacherBalance || 0).toFixed(2)} AZN
+                  </div>
+                  <p className="text-sm text-gray-500 italic">
+                    <span role="img" aria-label="İpucu">
+                      💡
+                    </span>{" "}
+                    Minimum çıxarış məbləği: 30 AZN
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowWithdrawModal(true)}
+                  // disabled={(balances?.teacherBalance || 0) < 30}
+                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Pul Çıxart{" "}
+                  <span role="img" aria-label="Çıxarış">
+                    💸
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* Admin Balance Section */}
+            {currentUser?.role === "ADMIN" && (
+              <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Admin Balansı{" "}
+                  <span role="img" aria-label="Pul">
+                    💰
+                  </span>
+                </h2>
+                <div className="mb-4">
+                  <div className="text-4xl font-bold text-purple-600 mb-2">
+                    {(balances?.adminBalance || 0).toFixed(2)} AZN
+                  </div>
+                  <p className="text-sm text-gray-500 italic">
+                    <span role="img" aria-label="İpucu">
+                      💡
+                    </span>{" "}
+                    İstənilən vaxt pul çıxara bilərsiniz
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowWithdrawModal(true)}
+                  disabled={(balances?.adminBalance || 0) <= 0}
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Pul Çıxart{" "}
+                  <span role="img" aria-label="Çıxarış">
+                    💸
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* Withdrawals History */}
+            {(currentUser?.role === "TEACHER" ||
+              currentUser?.role === "ADMIN") && (
+              <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Çıxarışlar{" "}
+                  <span role="img" aria-label="Tarixçə">
+                    📋
+                  </span>
+                </h2>
+                {withdrawals.length > 0 ? (
+                  <div className="space-y-4">
+                    {withdrawals.map((withdrawal: any) => (
+                      <div
+                        key={withdrawal.id}
+                        className="p-4 border border-gray-200 rounded-lg bg-gray-50"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {withdrawal.amount.toFixed(2)} AZN
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {withdrawal.bankName} - {withdrawal.bankAccount}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {new Date(withdrawal.createdAt).toLocaleString(
+                                "az-AZ"
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                withdrawal.status === "COMPLETED"
+                                  ? "bg-green-100 text-green-800"
+                                  : withdrawal.status === "REJECTED"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
+                            >
+                              {withdrawal.status === "COMPLETED"
+                                ? "Tamamlandı"
+                                : withdrawal.status === "REJECTED"
+                                ? "Rədd edildi"
+                                : "Gözləyir"}
+                            </span>
+                            {withdrawal.reason && (
+                              <div className="text-xs text-red-600 mt-1">
+                                {withdrawal.reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">
+                    Hələ çıxarış yoxdur
+                  </p>
+                )}
               </div>
             )}
 
@@ -567,7 +819,8 @@ export default function ProfileClient({
                 </div>
                 <p className="text-sm text-gray-500 mb-6">
                   Bu məbləğ balansınıza əlavə ediləcək və istədiyiniz vaxt
-                  imtahanlar üçün istifadə edə bilərsiniz.
+                  imtahanlar üçün istifadə edə bilərsiniz. Ödəniş Stripe ilə
+                  aparılacaq.
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -590,7 +843,128 @@ export default function ProfileClient({
                     }
                     className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {addingBalance ? "Yüklənir..." : "Artır"}
+                    {addingBalance ? "Yüklənir..." : "Ödənişə keç"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Withdraw Modal */}
+          {showWithdrawModal && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  Pul Çıxart{" "}
+                  <span role="img" aria-label="Pul">
+                    💸
+                  </span>
+                </h3>
+
+                {message && message.type === "error" && (
+                  <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border-l-4 border-red-500 text-red-700">
+                    <p className="font-medium text-sm">{message.text}</p>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Məbləğ (AZN)
+                  </label>
+                  <input
+                    type="number"
+                    min={currentUser?.role === "TEACHER" ? "30" : "0.01"}
+                    step="0.01"
+                    value={withdrawAmount}
+                    onChange={(e) => {
+                      setWithdrawAmount(e.target.value);
+                      if (message && message.type === "error") {
+                        setMessage(null);
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                    placeholder={
+                      currentUser?.role === "TEACHER"
+                        ? "Minimum 30 AZN"
+                        : currentUser?.role === "ADMIN"
+                        ? "İstənilən məbləğ (Məs: 10.00)"
+                        : "Məs: 10.00"
+                    }
+                  />
+                  {currentUser?.role === "TEACHER" && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Minimum çıxarış məbləği: 30 AZN
+                    </p>
+                  )}
+                  {currentUser?.role === "ADMIN" && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✅ Admin üçün minimum məbləğ yoxdur - istənilən vaxt pul
+                      çıxara bilərsiniz
+                    </p>
+                  )}
+                </div>
+
+                {/* Bank inputları kommentə alındı - Stripe onboarding istifadə olunur */}
+                {/* <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Bank Adı
+                  </label>
+                  <input
+                    type="text"
+                    value={bankName}
+                    onChange={(e) => {
+                      setBankName(e.target.value);
+                      if (message && message.type === "error") {
+                        setMessage(null);
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                    placeholder="Məs: Kapital Bank"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Bank Hesabı
+                  </label>
+                  <input
+                    type="text"
+                    value={bankAccount}
+                    onChange={(e) => {
+                      setBankAccount(e.target.value);
+                      if (message && message.type === "error") {
+                        setMessage(null);
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                    placeholder="Məs: AZ12345678901234567890"
+                  />
+                </div> */}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowWithdrawModal(false);
+                      setWithdrawAmount("");
+                      setBankAccount("");
+                      setBankName("");
+                      setMessage(null);
+                      setWithdrawing(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all"
+                  >
+                    Ləğv et
+                  </button>
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={
+                      withdrawing ||
+                      !withdrawAmount ||
+                      parseFloat(withdrawAmount) <= 0
+                    }
+                    className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {withdrawing ? "Göndərilir..." : "Nağdlaşdır"}
                   </button>
                 </div>
               </div>

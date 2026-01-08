@@ -1,5 +1,5 @@
 import { getServerUser, fetchServerAPI } from "@/lib/server-api";
-import { requireRole } from "@/lib/auth";
+import { requireAnyRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import AnalyticsClient from "./analytics-client";
 
@@ -23,7 +23,7 @@ interface SummaryData {
 
 export default async function AnalyticsServerWrapper() {
   try {
-    await requireRole("TEACHER");
+    await requireAnyRole(["TEACHER", "ADMIN"]);
     const user = await getServerUser();
 
     if (!user) {

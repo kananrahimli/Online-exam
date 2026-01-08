@@ -46,14 +46,23 @@ export default function MyExamsClient({
     }
   }, [initialUser, setUser]);
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, expiresAt?: string) => {
+    // Əgər müddət bitibsə, "Bitirildi" göstər
+    if (expiresAt) {
+      const now = new Date();
+      const expiresAtDate = new Date(expiresAt);
+      if (now > expiresAtDate && status === "IN_PROGRESS") {
+        return "Bitirildi";
+      }
+    }
+    
     switch (status) {
       case "COMPLETED":
         return "Tamamlanıb";
       case "IN_PROGRESS":
         return "Davam edir";
       case "TIMED_OUT":
-        return "Müddət bitib";
+        return "Bitirildi";
       default:
         return status;
     }
@@ -176,7 +185,7 @@ export default function MyExamsClient({
                           attempt.status || ""
                         )}`}
                       >
-                        {getStatusText(attempt.status || "")}
+                        {getStatusText(attempt.status || "", attempt.expiresAt)}
                       </span>
                     </div>
 

@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
+import { requireRole, requireAnyRole } from "./auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+
+// Re-export auth functions for convenience
+export { requireRole, requireAnyRole };
 
 export async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();

@@ -23,7 +23,17 @@ export class ExamAttemptController {
 
   @Post(':examId/start')
   async startExam(@Param('examId') examId: string, @CurrentUser() user: any) {
-    return this.examAttemptService.startExam(examId, user.id);
+    try {
+      return await this.examAttemptService.startExam(examId, user.id);
+    } catch (error: any) {
+      console.error('[START_EXAM_ERROR]', {
+        examId,
+        studentId: user.id,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
   }
 
   @Get('my-attempts')
@@ -91,6 +101,9 @@ export class ExamAttemptController {
   async testAwardPrizes(@Param('examId') examId: string) {
     // Test endpoint to manually trigger prize awarding
     await this.examAttemptService.checkAndAwardPrizes(examId);
-    return { message: 'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)' };
+    return {
+      message:
+        'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)',
+    };
   }
 }

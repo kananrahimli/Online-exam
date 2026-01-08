@@ -33,3 +33,11 @@ export async function requireRole(role: "STUDENT" | "TEACHER" | "ADMIN") {
   }
   return session;
 }
+
+export async function requireAnyRole(roles: ("STUDENT" | "TEACHER" | "ADMIN")[]) {
+  const session = await requireAuth();
+  if (!roles.includes(session.user?.role as "STUDENT" | "TEACHER" | "ADMIN")) {
+    redirect("/dashboard");
+  }
+  return session;
+}

@@ -80,6 +80,13 @@ export default function RegisterPage() {
           JSON.stringify(response.data.user)
         )}; path=/; max-age=86400; SameSite=Lax`;
       }
+
+      // ✅ Əgər müəllim və ya admin üçün Stripe onboarding linki varsa, oraya yönləndir
+      if (response.data.stripeOnboardingUrl) {
+        window.location.href = response.data.stripeOnboardingUrl;
+        return; // Yönləndirmə edilir, aşağıdakı router.push işləməsin
+      }
+
       router.push(ROUTES.DASHBOARD);
     } catch (err: any) {
       setError(

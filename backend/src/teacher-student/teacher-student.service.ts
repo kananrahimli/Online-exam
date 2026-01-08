@@ -131,10 +131,7 @@ export class TeacherStudentService {
         lastName: true,
         email: true,
       },
-      orderBy: [
-        { lastName: 'asc' },
-        { firstName: 'asc' },
-      ],
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
 
     // Get my teachers (teachers that student follows)

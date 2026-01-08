@@ -32,6 +32,15 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
         setBalanceMessage(null);
       }, 5000);
     }
+
+    // Check if Stripe onboarding was completed
+    if (searchParams?.get("stripeOnboarding") === "success") {
+      setBalanceMessage("Stripe hesabınız uğurla aktivləşdirildi! 🎉");
+      setTimeout(() => {
+        router.replace("/dashboard");
+        setBalanceMessage(null);
+      }, 5000);
+    }
   }, [searchParams, router]);
 
   return (
@@ -63,7 +72,11 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                   {initialUser.firstName} {initialUser.lastName}
                 </p>
                 <p className="text-sm text-gray-500 capitalize">
-                  {initialUser.role === UserRole.STUDENT ? "Şagird" : "Müəllim"}
+                  {initialUser.role === UserRole.STUDENT
+                    ? "Şagird"
+                    : initialUser.role === UserRole.TEACHER
+                    ? "Müəllim"
+                    : "Admin"}
                 </p>
               </div>
               <Link
@@ -200,6 +213,86 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
                 <span className="inline-flex items-center text-pink-600 font-semibold group-hover:translate-x-2 transition-transform">
                   Kecid et <span aria-hidden="true">→</span>
                 </span>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {initialUser.role === UserRole.ADMIN && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link
+              href="/payments/withdrawals/pending"
+              aria-label="Gözləyən çıxarışlar"
+              className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-400 to-red-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-2xl">⏳</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-red-600 transition-colors">
+                  Gözləyən Çıxarışlar
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Müəllimlərin çıxarış sorğularını idarə edin
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href="/profile"
+              aria-label="Admin balansı"
+              className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-2xl">💰</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">
+                  Admin Balansı
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Balansınızı görüntüləyin və pul çıxartın
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href="/teacher/stripe/create-accounts-for-all"
+              aria-label="Stripe account-ları yarat"
+              className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-2xl">🔧</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                  Stripe Account-ları
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Bütün müəllim və admin-lər üçün Stripe account yaradın
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href="/analytics"
+              aria-label="Statistika"
+              className="group relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 p-8 border border-gray-100 overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-full -mr-16 -mt-16 opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-2xl">📈</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-green-600 transition-colors">
+                  Statistika
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Sistem statistikalarını görün
+                </p>
               </div>
             </Link>
           </div>

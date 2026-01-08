@@ -2,9 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // Stripe webhook üçün raw body lazımdır
+  });
+
+  // Stripe webhook üçün raw body middleware
+  app.use('/payments/webhook', (req, res, next) => {
+    if (req.originalUrl === '/payments/webhook') {
+      next();
+    } else {
+      next();
+    }
+  });
 
   app.use(cookieParser());
   app.enableCors({

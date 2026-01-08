@@ -369,26 +369,42 @@ export class ExamService {
       },
     });
 
-    // If studentId provided, filter out exams that student has already completed
+    // If studentId provided, filter out exams that student has already completed or has expired attempts
     let filteredExams = exams;
     if (studentId) {
-      // Get all exam IDs that student has completed
-      const completedAttempts = await this.prisma.examAttempt.findMany({
+      const now = new Date();
+
+      // Get all exam attempts for this student
+      const allAttempts = await this.prisma.examAttempt.findMany({
         where: {
           studentId,
-          status: ExamAttemptStatus.COMPLETED,
         },
         select: {
           examId: true,
+          status: true,
+          expiresAt: true,
         },
       });
 
-      const completedExamIds = new Set(
-        completedAttempts.map((attempt) => attempt.examId),
-      );
+      // Filter out exams where:
+      // 1. Student has completed the exam
+      // 2. Student has an expired attempt (müddət bitib, heç nə etməyib)
+      const excludedExamIds = new Set<string>();
 
-      // Filter out exams that student has already completed
-      filteredExams = exams.filter((exam) => !completedExamIds.has(exam.id));
+      allAttempts.forEach((attempt) => {
+        if (attempt.status === ExamAttemptStatus.COMPLETED) {
+          excludedExamIds.add(attempt.examId);
+        } else if (
+          attempt.status === ExamAttemptStatus.IN_PROGRESS &&
+          new Date(attempt.expiresAt) < now
+        ) {
+          // Müddət bitib, heç nə etməyib - imtahanı gizlə
+          excludedExamIds.add(attempt.examId);
+        }
+      });
+
+      // Filter out excluded exams
+      filteredExams = exams.filter((exam) => !excludedExamIds.has(exam.id));
     }
 
     // Add calculated price to each exam

@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { TeacherService } from '../teacher/teacher.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -21,6 +22,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private teacherService: TeacherService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -71,6 +73,28 @@ export class AuthService {
       },
     });
 
+    // ✅ Avtomatik Stripe account yarat və onboarding linki al (Müəllim və ya Admin üçün)
+    let stripeOnboardingUrl: string | null = null;
+    if (user.role === 'TEACHER' || user.role === 'ADMIN') {
+      try {
+        await this.teacherService.createStripeAccount(user.id);
+        console.log(`✅ Stripe account avtomatik yaradıldı: ${user.email}`);
+
+        // Onboarding linki yarat
+        const onboardingLink = await this.teacherService.createAccountLink(
+          user.id,
+        );
+        stripeOnboardingUrl = onboardingLink.url;
+        console.log(`✅ Stripe onboarding linki yaradıldı: ${user.email}`);
+      } catch (error: any) {
+        // Stripe account yaratma xətası qeydiyyatı dayandırmasın
+        console.error(
+          `⚠️ Stripe account yaradıla bilmədi (${user.email}):`,
+          error.message,
+        );
+      }
+    }
+
     // If student and teacherIds provided, create teacher-student relations
     if (user.role === 'STUDENT' && teacherIds && teacherIds.length > 0) {
       // Verify all teachers exist
@@ -107,6 +131,7 @@ export class AuthService {
     return {
       user,
       token,
+      ...(stripeOnboardingUrl && { stripeOnboardingUrl }), // Müəllim/Admin üçün onboarding linki
     };
   }
 

@@ -3,90 +3,334 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentService } from '../payment/payment.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { ExamAttemptStatus, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class ExamAttemptService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ExamAttemptService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private paymentService: PaymentService,
+  ) {}
 
   async startExam(examId: string, studentId: string) {
-    // Check if exam exists and is published
-    const exam = await this.prisma.exam.findUnique({
-      where: { id: examId },
-    });
+    this.logger.log(
+      `[START_EXAM] Başlanır: examId=${examId}, studentId=${studentId}`,
+    );
 
-    if (!exam) {
-      throw new NotFoundException('İmtahan tapılmadı');
-    }
+    try {
+      // Check if exam exists and is published
+      const exam = await this.prisma.exam.findUnique({
+        where: { id: examId },
+      });
 
-    if (exam.status !== 'PUBLISHED') {
-      throw new ForbiddenException('İmtahan yayımlanmayıb');
-    }
+      if (!exam) {
+        throw new NotFoundException('İmtahan tapılmadı');
+      }
 
-    // Get user to check balance
-    const user = await this.prisma.user.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        balance: true,
-        role: true,
-      },
-    });
+      if (exam.status !== 'PUBLISHED') {
+        throw new ForbiddenException('İmtahan yayımlanmayıb');
+      }
 
-    if (!user) {
-      throw new NotFoundException('İstifadəçi tapılmadı');
-    }
-
-    // Calculate exam price
-    let examPrice = 3; // default 1 saat
-    if (exam.duration === 60) examPrice = 3;
-    else if (exam.duration === 120) examPrice = 5;
-    else if (exam.duration === 180) examPrice = 10;
-
-    // Check if user has enough balance
-    if (user.balance < examPrice) {
-      throw new BadRequestException(
-        `Balansınız kifayət etmir. İmtahan qiyməti: ${examPrice} AZN. Balansınız: ${user.balance.toFixed(2)} AZN`,
-      );
-    }
-
-    // Check if attempt already exists (completed or in progress)
-    const existingAttempt = await this.prisma.examAttempt.findFirst({
-      where: {
-        examId,
-        studentId,
-        status: {
-          in: [ExamAttemptStatus.IN_PROGRESS, ExamAttemptStatus.COMPLETED],
+      // ƏVVƏLCƏ mövcud attempt-i yoxla - əgər varsa və completed/expired deyilsə, birbaşa qaytar
+      const existingAttempt = await this.prisma.examAttempt.findFirst({
+        where: {
+          examId,
+          studentId,
         },
-      },
-      orderBy: {
-        startedAt: 'desc',
-      },
-    });
+        orderBy: {
+          startedAt: 'desc',
+        },
+      });
 
-    // If student already completed the exam, prevent starting again
-    if (
-      existingAttempt &&
-      existingAttempt.status === ExamAttemptStatus.COMPLETED
-    ) {
-      throw new ForbiddenException(
-        'Bu imtahanı artıq bitirmisiniz. Nəticələrinizə "İmtahanlarım" səhifəsindən baxa bilərsiniz.',
-      );
-    }
+      // Əgər attempt varsa və completed deyilsə
+      if (existingAttempt) {
+        // Completed attempts-ə icazə vermə
+        if (existingAttempt.status === ExamAttemptStatus.COMPLETED) {
+          throw new ForbiddenException(
+            'Bu imtahanı artıq bitirmisiniz. Nəticələrinizə "İmtahanlarım" səhifəsindən baxa bilərsiniz.',
+          );
+        }
 
-    // If there's an in-progress attempt, use it
-    let attempt = existingAttempt;
+        // Attempt expired deyilsə, birbaşa imtahan səhifəsinə yönləndir
+        const checkNow = new Date();
+        const expiresAtDate = new Date(existingAttempt.expiresAt);
 
-    // If no attempt exists, create a new one
-    if (!attempt) {
+        if (checkNow <= expiresAtDate) {
+          // Attempt hələ də aktivdir - ödənişsiz birbaşa imtahan səhifəsinə yönləndir
+          this.logger.log(
+            `Mövcud attempt istifadə olunur: attemptId=${existingAttempt.id}, ödəniş lazım deyil`,
+          );
+
+          // Exam questions-ı yüklə (attempt üçün)
+          const examWithQuestions = await this.prisma.exam.findUnique({
+            where: { id: examId },
+            include: {
+              topics: {
+                include: {
+                  questions: {
+                    include: {
+                      options: true,
+                    },
+                    orderBy: { order: 'asc' },
+                  },
+                },
+                orderBy: { order: 'asc' },
+              },
+              questions: {
+                include: {
+                  options: true,
+                  readingText: true,
+                },
+                orderBy: { order: 'asc' },
+              },
+              readingTexts: {
+                orderBy: { order: 'asc' },
+              },
+            },
+          });
+
+          if (!examWithQuestions) {
+            throw new NotFoundException('İmtahan tapılmadı');
+          }
+
+          // Remove correct answers
+          if (examWithQuestions.questions) {
+            examWithQuestions.questions.forEach((q) => {
+              delete q.correctAnswer;
+              delete q.modelAnswer;
+            });
+          }
+
+          if (examWithQuestions.topics) {
+            examWithQuestions.topics.forEach((topic) => {
+              if (topic.questions) {
+                topic.questions.forEach((q) => {
+                  delete q.correctAnswer;
+                  delete q.modelAnswer;
+                });
+              }
+            });
+          }
+
+          // Combine all questions
+          const allQuestions = [];
+          if (examWithQuestions.topics) {
+            examWithQuestions.topics.forEach((topic) => {
+              if (topic.questions) {
+                allQuestions.push(...topic.questions);
+              }
+            });
+          }
+          if (examWithQuestions.questions) {
+            allQuestions.push(...examWithQuestions.questions);
+          }
+
+          // Map readingTextId to readingText object
+          if (
+            examWithQuestions.readingTexts &&
+            examWithQuestions.readingTexts.length > 0
+          ) {
+            const readingTextsMap = new Map(
+              examWithQuestions.readingTexts.map((rt) => [rt.id, rt]),
+            );
+            allQuestions.forEach((q: any) => {
+              if (q.readingTextId && !q.readingText) {
+                q.readingText = readingTextsMap.get(q.readingTextId) || null;
+              }
+            });
+          }
+
+          return {
+            attemptId: existingAttempt.id,
+            attempt: existingAttempt,
+            exam: {
+              ...examWithQuestions,
+              allQuestions,
+            },
+          };
+        } else {
+          // Attempt expired - timed out olaraq işarələ
+          this.logger.log(
+            `Mövcud attempt keçmişdir, timed out olaraq işarələnir: attemptId=${existingAttempt.id}`,
+          );
+          await this.prisma.examAttempt.update({
+            where: { id: existingAttempt.id },
+            data: { status: ExamAttemptStatus.TIMED_OUT },
+          });
+          // Yeni attempt yaradılacaq (aşağıda)
+        }
+      }
+
+      // Get user to check balance (yalnız yeni attempt üçün)
+      const user = await this.prisma.user.findUnique({
+        where: { id: studentId },
+        select: {
+          id: true,
+          balance: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('İstifadəçi tapılmadı');
+      }
+
+      // Calculate exam price
+      let examPrice = 3; // default 1 saat
+      if (exam.duration === 60) examPrice = 3;
+      else if (exam.duration === 120) examPrice = 5;
+      else if (exam.duration === 180) examPrice = 10;
+
+      // Check if user has enough balance (yalnız yeni attempt üçün)
+      if (user.balance < examPrice) {
+        throw new BadRequestException(
+          `Balansınız kifayət etmir. İmtahan qiyməti: ${examPrice} AZN. Balansınız: ${user.balance.toFixed(2)} AZN`,
+        );
+      }
+
+      // ƏVVƏLCƏ exam questions-ı yüklə və yoxla (xəta baş verərsə, balansdan çıxış olunmasın)
+      // Bu yoxlama balansdan çıxmazdan ƏVVƏL edilməlidir
+      // Tam formatda yükləyək ki, yenidən yükləməyə ehtiyac qalmasın
+      const examWithQuestionsCheck = await this.prisma.exam.findUnique({
+        where: { id: examId },
+        include: {
+          topics: {
+            include: {
+              questions: {
+                include: {
+                  options: true,
+                },
+                orderBy: { order: 'asc' },
+              },
+            },
+            orderBy: { order: 'asc' },
+          },
+          questions: {
+            include: {
+              options: true,
+              readingText: true,
+            },
+            orderBy: { order: 'asc' },
+          },
+          readingTexts: {
+            orderBy: { order: 'asc' },
+          },
+        },
+      });
+
+      if (!examWithQuestionsCheck) {
+        throw new NotFoundException('İmtahan tapılmadı');
+      }
+
+      // İmtahanın sualları yoxdursa xəta at (balansdan çıxmazdan əvvəl)
+      const hasQuestions =
+        (examWithQuestionsCheck.questions &&
+          examWithQuestionsCheck.questions.length > 0) ||
+        (examWithQuestionsCheck.topics &&
+          examWithQuestionsCheck.topics.some(
+            (topic) => topic.questions && topic.questions.length > 0,
+          ));
+
+      if (!hasQuestions) {
+        throw new BadRequestException(
+          'İmtahanda sual yoxdur. İmtahanı başlada bilməzsiniz.',
+        );
+      }
+
+      // Questions-ları birləşdir və yoxla (balansdan çıxmazdan əvvəl)
+      const allQuestionsCheck = [];
+      if (examWithQuestionsCheck.topics) {
+        examWithQuestionsCheck.topics.forEach((topic) => {
+          if (topic.questions) {
+            allQuestionsCheck.push(...topic.questions);
+          }
+        });
+      }
+      if (examWithQuestionsCheck.questions) {
+        allQuestionsCheck.push(...examWithQuestionsCheck.questions);
+      }
+
+      if (allQuestionsCheck.length === 0) {
+        throw new BadRequestException(
+          'İmtahanda sual yoxdur. İmtahanı başlada bilməzsiniz.',
+        );
+      }
+
+      // ReadingText mapping-i də yoxla (balansdan çıxmazdan əvvəl)
+      if (
+        examWithQuestionsCheck.readingTexts &&
+        examWithQuestionsCheck.readingTexts.length > 0
+      ) {
+        const readingTextsMap = new Map(
+          examWithQuestionsCheck.readingTexts.map((rt) => [rt.id, rt]),
+        );
+        allQuestionsCheck.forEach((q: any) => {
+          if (q.readingTextId && !q.readingText) {
+            q.readingText = readingTextsMap.get(q.readingTextId) || null;
+          }
+        });
+      }
+
+      // Əgər attempt artıq yoxlanıldı və return edildiyisə, bura çatmamalıdır
+      // Amma əgər attempt expired olubsa və yeni attempt lazımdırsa, aşağıda yaradılacaq
+
+      // Yeni attempt yaratmaq lazımdırsa (existing attempt expired olubsa və ya yoxdursa)
+      // Check if payment already exists (Stripe payment ilə gələn attempt)
+      const existingPayment = await this.prisma.payment.findFirst({
+        where: {
+          examId,
+          studentId,
+          status: PaymentStatus.COMPLETED,
+        },
+        include: {
+          attempt: true,
+        },
+      });
+
+      const hasExistingPayment = !!existingPayment;
+
+      // If payment exists with attempt and it's expired, mark as timed out
+      if (existingPayment && existingPayment.attempt) {
+        const paymentAttempt = existingPayment.attempt;
+        if (paymentAttempt.status !== ExamAttemptStatus.COMPLETED) {
+          const paymentCheckNow = new Date();
+          const expiresAtDate = new Date(paymentAttempt.expiresAt);
+
+          if (paymentCheckNow > expiresAtDate) {
+            // Payment ilə gələn attempt expired - timed out olaraq işarələ
+            this.logger.warn(
+              `Payment ilə gələn attempt keçmişdir: attemptId=${paymentAttempt.id}, expiresAt=${expiresAtDate.toISOString()}`,
+            );
+            await this.prisma.examAttempt.update({
+              where: { id: paymentAttempt.id },
+              data: { status: ExamAttemptStatus.TIMED_OUT },
+            });
+            // Yeni attempt yaratılacaq
+          }
+        }
+      }
+
+      // Yeni attempt yarat (existing attempt expired olubsa və ya yoxdursa)
+      // Bütün yoxlamalar artıq edildi (examWithQuestionsCheck yüklənib və yoxlanılıb)
+      // İndi attempt yaradıla bilər
       // Calculate expiry date
-      const expiresAt = new Date();
+      const now = new Date();
+      const expiresAt = new Date(now);
       expiresAt.setMinutes(expiresAt.getMinutes() + exam.duration);
 
-      attempt = await this.prisma.examAttempt.create({
+      this.logger.log(
+        `Yeni attempt yaradılır: examId=${examId}, studentId=${studentId}, duration=${exam.duration} dəqiqə, expiresAt=${expiresAt.toISOString()}`,
+      );
+
+      // Create attempt first
+      let attempt = await this.prisma.examAttempt.create({
         data: {
           examId,
           studentId,
@@ -95,118 +339,164 @@ export class ExamAttemptService {
         },
       });
 
-      // Deduct from balance
-      await this.prisma.user.update({
-        where: { id: studentId },
-        data: {
-          balance: {
-            decrement: examPrice,
-          },
-        },
-      });
+      // Balansdan çıxış və müəllim/admin-ə paylama (yalnız payment yoxdursa)
+      // Bütün yoxlamalar artıq edildi, burada xəta baş verərsə attempt silinəcək
+      if (!hasExistingPayment) {
+        try {
+          await this.paymentService.deductFromBalanceForExam(
+            studentId,
+            examId,
+            attempt.id,
+          );
+        } catch (err) {
+          // Ödəniş baş tutmadısa attempt-i sil ki, student (examId, studentId) unique constraint ilə kilidlənməsin
+          await this.prisma.examAttempt
+            .delete({ where: { id: attempt.id } })
+            .catch(() => undefined);
+          throw err;
+        }
+      } else {
+        this.logger.log(
+          `Payment artıq var, balansdan çıxma lazım deyil: paymentId=${existingPayment?.id}`,
+        );
+      }
 
-      // Create payment record
-      await this.prisma.payment.create({
-        data: {
-          studentId,
-          examId,
-          attemptId: attempt.id,
-          amount: examPrice,
-          status: PaymentStatus.COMPLETED,
-          transactionId: `BAL-DED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        },
-      });
-    }
-
-    // Check if expired
-    if (new Date() > attempt.expiresAt) {
-      await this.prisma.examAttempt.update({
+      // Attempt-i database-dən yenidən yüklə
+      attempt = await this.prisma.examAttempt.findUnique({
         where: { id: attempt.id },
-        data: { status: ExamAttemptStatus.TIMED_OUT },
       });
-      throw new ForbiddenException('İmtahan müddəti bitib');
-    }
 
-    // Get exam with questions (without answers for student)
-    const examWithQuestions = await this.prisma.exam.findUnique({
-      where: { id: examId },
-      include: {
-        topics: {
-          include: {
-            questions: {
-              include: {
-                options: true,
-              },
-              orderBy: { order: 'asc' },
-            },
-          },
-          orderBy: { order: 'asc' },
-        },
-        questions: {
-          include: {
-            options: true,
-            readingText: true,
-          },
-          orderBy: { order: 'asc' },
-        },
-        readingTexts: {
-          orderBy: { order: 'asc' },
-        },
-      },
-    });
+      if (!attempt) {
+        throw new NotFoundException('İmtahan cəhdi yaradıla bilmədi');
+      }
 
-    // Remove correct answers
-    examWithQuestions.questions.forEach((q) => {
-      delete q.correctAnswer;
-      delete q.modelAnswer;
-    });
-
-    examWithQuestions.topics.forEach((topic) => {
-      topic.questions.forEach((q) => {
-        delete q.correctAnswer;
-        delete q.modelAnswer;
+      // Check if expired (attempt-i yenidən yükləyək)
+      const currentAttempt = await this.prisma.examAttempt.findUnique({
+        where: { id: attempt.id },
       });
-    });
 
-    // Combine all questions (from topics and regular questions) and map readingText
-    const allQuestions = [];
+      if (!currentAttempt) {
+        throw new NotFoundException('İmtahan cəhdi tapılmadı');
+      }
 
-    // Add questions from topics
-    if (examWithQuestions.topics) {
-      examWithQuestions.topics.forEach((topic) => {
-        if (topic.questions) {
-          allQuestions.push(...topic.questions);
-        }
-      });
-    }
+      // Tarixləri yoxla
+      const currentNow = new Date();
+      const expiresAtDate = new Date(currentAttempt.expiresAt);
 
-    // Add regular questions
-    if (examWithQuestions.questions) {
-      allQuestions.push(...examWithQuestions.questions);
-    }
-
-    // Map readingTextId to readingText object
-    if (
-      examWithQuestions.readingTexts &&
-      examWithQuestions.readingTexts.length > 0
-    ) {
-      const readingTextsMap = new Map(
-        examWithQuestions.readingTexts.map((rt) => [rt.id, rt]),
+      this.logger.log(
+        `Attempt yoxlanılır: attemptId=${currentAttempt.id}, examId=${examId}, studentId=${studentId}`,
       );
-      allQuestions.forEach((q: any) => {
-        if (q.readingTextId && !q.readingText) {
-          q.readingText = readingTextsMap.get(q.readingTextId) || null;
-        }
-      });
-    }
+      this.logger.log(`  - now: ${currentNow.toISOString()}`);
+      this.logger.log(`  - expiresAt: ${expiresAtDate.toISOString()}`);
+      this.logger.log(`  - exam.duration: ${exam.duration} dəqiqə`);
+      this.logger.log(`  - expired: ${currentNow > expiresAtDate}`);
 
-    return {
-      attempt,
-      exam: {
-        ...examWithQuestions,
-        allQuestions, // Add combined questions array
-      },
-    };
+      if (currentNow > expiresAtDate) {
+        this.logger.warn(
+          `⚠️ Attempt keçmişdir! attemptId=${currentAttempt.id}, expiresAt=${expiresAtDate.toISOString()}, now=${currentNow.toISOString()}`,
+        );
+        await this.prisma.examAttempt.update({
+          where: { id: currentAttempt.id },
+          data: { status: ExamAttemptStatus.TIMED_OUT },
+        });
+        throw new ForbiddenException(
+          `İmtahan müddəti bitib. Müddət: ${exam.duration} dəqiqə. Bitmə tarixi: ${expiresAtDate.toLocaleString('az-AZ')}`,
+        );
+      }
+
+      // currentAttempt-i istifadə et
+      attempt = currentAttempt;
+
+      // Get exam with questions (without answers for student)
+      // examWithQuestionsCheck artıq yüklənib və yoxlanılıb, istifadə edək
+      const examWithQuestions = examWithQuestionsCheck;
+
+      if (!examWithQuestions) {
+        this.logger.error(
+          `examWithQuestions undefined: examId=${examId}, studentId=${studentId}`,
+        );
+        throw new NotFoundException('İmtahan tapılmadı');
+      }
+
+      if (!attempt || !attempt.id) {
+        this.logger.error(
+          `attempt undefined: examId=${examId}, studentId=${studentId}`,
+        );
+        throw new NotFoundException('İmtahan cəhdi tapılmadı');
+      }
+
+      // Remove correct answers (examWithQuestionsCheck-dən istifadə edəndə də lazımdır)
+      if (examWithQuestions.questions) {
+        examWithQuestions.questions.forEach((q) => {
+          delete q.correctAnswer;
+          delete q.modelAnswer;
+        });
+      }
+
+      if (examWithQuestions.topics) {
+        examWithQuestions.topics.forEach((topic) => {
+          if (topic.questions) {
+            topic.questions.forEach((q) => {
+              delete q.correctAnswer;
+              delete q.modelAnswer;
+            });
+          }
+        });
+      }
+
+      // Combine all questions (from topics and regular questions) and map readingText
+      // Əgər examWithQuestionsCheck istifadə olunubsa, allQuestionsCheck artıq yaradılıb
+      // Amma yenidən yaradaq ki, düzgün format olsun
+      const allQuestions = [];
+
+      // Add questions from topics
+      if (examWithQuestions.topics) {
+        examWithQuestions.topics.forEach((topic) => {
+          if (topic.questions) {
+            allQuestions.push(...topic.questions);
+          }
+        });
+      }
+
+      // Add regular questions
+      if (examWithQuestions.questions) {
+        allQuestions.push(...examWithQuestions.questions);
+      }
+
+      // Map readingTextId to readingText object (artıq examWithQuestionsCheck-də edildi, amma yenidən edək)
+      if (
+        examWithQuestions.readingTexts &&
+        examWithQuestions.readingTexts.length > 0
+      ) {
+        const readingTextsMap = new Map(
+          examWithQuestions.readingTexts.map((rt) => [rt.id, rt]),
+        );
+        allQuestions.forEach((q: any) => {
+          if (q.readingTextId && !q.readingText) {
+            q.readingText = readingTextsMap.get(q.readingTextId) || null;
+          }
+        });
+      }
+
+      this.logger.log(
+        `✅ Attempt uğurla yaradıldı: attemptId=${attempt.id}, examId=${examId}, studentId=${studentId}, questionsCount=${allQuestions.length}`,
+      );
+
+      return {
+        attemptId: attempt.id,
+        attempt,
+        exam: {
+          ...examWithQuestions,
+          allQuestions, // Add combined questions array
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[START_EXAM_ERROR] examId=${examId}, studentId=${studentId}, error=${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 
   async getAttempt(attemptId: string, studentId: string) {

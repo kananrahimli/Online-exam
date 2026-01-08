@@ -10,6 +10,7 @@ import { AiModule } from './ai/ai.module';
 import { ExamAttemptModule } from './exam-attempt/exam-attempt.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { TeacherStudentModule } from './teacher-student/teacher-student.module';
+import { TeacherModule } from './teacher/teacher.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TeacherStudentModule } from './teacher-student/teacher-student.module';
     ExamAttemptModule,
     AnalyticsModule,
     TeacherStudentModule,
+    TeacherModule,
   ],
   controllers: [AppController],
   providers: [AppService],

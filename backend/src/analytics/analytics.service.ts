@@ -304,7 +304,7 @@ export class AnalyticsService {
 
     // Yalnız yayımlanmış imtahanları gətir
     const exams = await this.prisma.exam.findMany({
-      where: { 
+      where: {
         teacherId,
         publishedAt: { not: null }, // Yalnız yayımlanmış imtahanlar
       },
@@ -326,63 +326,66 @@ export class AnalyticsService {
       },
     });
 
-    const stats = exams.map((exam) => {
-      const attempts = exam.attempts;
-      const completedAttempts = attempts.filter(
-        (a) => a.status === 'COMPLETED',
-      );
+    const stats = exams
+      .map((exam) => {
+        const attempts = exam.attempts;
+        const completedAttempts = attempts.filter(
+          (a) => a.status === 'COMPLETED',
+        );
 
-      const scores = completedAttempts
-        .filter((a) => a.score !== null && a.totalScore !== null)
-        .map((a) => ((a.score || 0) / (a.totalScore || 1)) * 100);
+        const scores = completedAttempts
+          .filter((a) => a.score !== null && a.totalScore !== null)
+          .map((a) => ((a.score || 0) / (a.totalScore || 1)) * 100);
 
-      const averageScore =
-        scores.length > 0
-          ? scores.reduce((sum, score) => sum + score, 0) / scores.length
-          : 0;
+        const averageScore =
+          scores.length > 0
+            ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+            : 0;
 
-      // Format createdAt in Azerbaijani locale
-      let formattedDate: string = '-';
-      let formattedTime: string = '';
+        // Format createdAt in Azerbaijani locale
+        let formattedDate: string = '-';
+        let formattedTime: string = '';
 
-      if (exam.createdAt) {
-        try {
-          const date =
-            exam.createdAt instanceof Date
-              ? exam.createdAt
-              : new Date(exam.createdAt);
+        if (exam.createdAt) {
+          try {
+            const date =
+              exam.createdAt instanceof Date
+                ? exam.createdAt
+                : new Date(exam.createdAt);
 
-          if (!isNaN(date.getTime())) {
-            // Format date in Azerbaijani locale
-            formattedDate = date.toLocaleDateString('az-AZ', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            });
+            if (!isNaN(date.getTime())) {
+              // Format date in Azerbaijani locale
+              formattedDate = date.toLocaleDateString('az-AZ', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              });
 
-            formattedTime = date.toLocaleTimeString('az-AZ', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
+              formattedTime = date.toLocaleTimeString('az-AZ', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+            }
+          } catch (e) {
+            console.error('Error formatting createdAt:', e, exam.createdAt);
           }
-        } catch (e) {
-          console.error('Error formatting createdAt:', e, exam.createdAt);
         }
-      }
 
-      return {
-        examId: exam.id,
-        examTitle: exam.title,
-        totalAttempts: attempts.length,
-        averageScore: parseFloat(averageScore.toFixed(2)),
-        totalStudents: new Set(attempts.map((a) => a.studentId)).size,
-        completionRate:
-          attempts.length > 0 ? completedAttempts.length / attempts.length : 0,
-        createdAt: formattedDate,
-        createdAtTime: formattedTime,
-      };
-    })
-    .filter((stat) => stat.totalAttempts > 0); // Yalnız cəhd sayı 0-dan böyük olan imtahanlar
+        return {
+          examId: exam.id,
+          examTitle: exam.title,
+          totalAttempts: attempts.length,
+          averageScore: parseFloat(averageScore.toFixed(2)),
+          totalStudents: new Set(attempts.map((a) => a.studentId)).size,
+          completionRate:
+            attempts.length > 0
+              ? completedAttempts.length / attempts.length
+              : 0,
+          createdAt: formattedDate,
+          createdAtTime: formattedTime,
+        };
+      })
+      .filter((stat) => stat.totalAttempts > 0); // Yalnız cəhd sayı 0-dan böyük olan imtahanlar
 
     const totalAttempts = stats.reduce((sum, s) => sum + s.totalAttempts, 0);
     const overallAverage =
@@ -392,9 +395,7 @@ export class AnalyticsService {
 
     // Yalnız filtr edilmiş imtahanların tələbələrini say
     const filteredExamIds = new Set(stats.map((s) => s.examId));
-    const filteredExams = exams.filter((exam) =>
-      filteredExamIds.has(exam.id),
-    );
+    const filteredExams = exams.filter((exam) => filteredExamIds.has(exam.id));
 
     return {
       totalExams: stats.length, // Filtr edilmiş imtahanların sayı

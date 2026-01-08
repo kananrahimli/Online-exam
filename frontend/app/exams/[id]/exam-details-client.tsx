@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { Exam } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
-import { ROUTES } from "@/lib/constants/routes";
+import { ROUTES, API_ENDPOINTS } from "@/lib/constants/routes";
 
 interface ExamDetailsClientProps {
   initialExam: Exam;
@@ -47,40 +47,47 @@ export default function ExamDetailsClient({
 
     const examPrice = calculatePrice(exam.duration);
 
-    // Balans yoxla
-    if (userBalance < examPrice) {
-      setStartError(
-        `Balansınız kifayət etmir. İmtahan qiyməti: ${examPrice} AZN. Balansınız: ${userBalance.toFixed(
-          2
-        )} AZN. Zəhmət olmasa balansınızı artırın.`
-      );
-      return;
-    }
-
     // Xəbərdarlıq popup-u göstər
     setShowConfirmModal(true);
   };
 
   const handleStartExam = async () => {
+    if (!exam) return;
+
     setShowConfirmModal(false);
     setStartError("");
     setStarting(true);
+
     try {
-      const response = await api.post(`/exam-attempts/${examId}/start`);
-      const attemptId = response.data.attempt?.id || response.data.id;
+      // İmtahana başla - balansdan avtomatik çıxış olacaq (payment session YOXDUR)
+      const response = await api.post(
+        API_ENDPOINTS.EXAM_ATTEMPTS.START(examId)
+      );
 
-      // Balansı yenilə
-      await fetchBalance();
+      console.log("Start exam response:", response.data);
 
-      router.push(`/exams/${examId}/take?attemptId=${attemptId}`);
+      // Attempt ID-ni al və imtahan səhifəsinə yönləndir
+      if (response.data?.attemptId) {
+        router.push(
+          `/exams/${examId}/take?attemptId=${response.data.attemptId}`
+        );
+      } else if (response.data?.attempt?.id) {
+        // Fallback: əgər attemptId yoxdursa amma attempt.id varsa
+        router.push(
+          `/exams/${examId}/take?attemptId=${response.data.attempt.id}`
+        );
+      } else {
+        console.error("Response data:", response.data);
+        throw new Error("İmtahan başladıla bilmədi: attemptId tapılmadı");
+      }
     } catch (err: any) {
       console.error("Error starting exam:", err);
+      console.error("Error response:", err.response?.data);
       const errorMessage =
-        err.response?.data?.message || "İmtahan başlatmaq mümkün olmadı";
+        err.response?.data?.message ||
+        err.message ||
+        "İmtahana başlamaq mümkün olmadı";
       setStartError(errorMessage);
-
-      await fetchBalance();
-    } finally {
       setStarting(false);
     }
   };

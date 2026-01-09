@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +5,258 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")  
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                String           @id @default(cuid())
+  email             String           @unique
+  phone             String?          @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              UserRole         @default(STUDENT)
+  balance           Float            @default(0)
+  resetToken        String?
+  resetTokenExpires DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  teacherBalance    Float            @default(0)
+  bankAccount       String?
+  examAttempts      ExamAttempt[]
+  examsCreated      Exam[]           @relation("TeacherExams")
+  paymentSplits     PaymentSplit[]   @relation("TeacherSplits")
+  payments          Payment[]
+  questionBanks     QuestionBank[]
+  followedTeachers  TeacherStudent[] @relation("StudentFollows")
+  students          TeacherStudent[] @relation("TeacherHasStudents")
+  withdrawals       Withdrawal[]
+
+  @@map("users")
+}
+
+model Exam {
+  id           String        @id @default(cuid())
+  title        String
+  description  String?
+  subject      String
+  level        String
+  status       ExamStatus    @default(DRAFT)
+  duration     Int
+  version      Int           @default(1)
+  teacherId    String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  publishedAt  DateTime?
+  attempts     ExamAttempt[]
+  topics       ExamTopic[]
+  teacher      User          @relation("TeacherExams", fields: [teacherId], references: [id])
+  payments     Payment[]
+  questions    Question[]
+  readingTexts ReadingText[]
+
+  @@map("exams")
+}
+
+model TeacherStudent {
+  id        String   @id @default(cuid())
+  teacherId String
+  studentId String
+  createdAt DateTime @default(now())
+  student   User     @relation("StudentFollows", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher   User     @relation("TeacherHasStudents", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, studentId])
+  @@map("teacher_students")
+}
+
+model ExamTopic {
+  id        String     @id @default(cuid())
+  examId    String
+  name      String
+  subject   String
+  order     Int
+  points    Float      @default(1)
+  createdAt DateTime   @default(now())
+  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([examId, order])
+  @@map("exam_topics")
+}
+
+model ReadingText {
+  id        String     @id @default(cuid())
+  examId    String
+  content   String
+  order     Int
+  createdAt DateTime   @default(now())
+  questions Question[]
+  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, order])
+  @@map("reading_texts")
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  examId        String
+  topicId       String?
+  readingTextId String?
+  type          QuestionType
+  content       String
+  order         Int
+  points        Int          @default(1)
+  correctAnswer String?
+  modelAnswer   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  answers       Answer[]
+  options       Option[]
+  exam          Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  readingText   ReadingText? @relation(fields: [readingTextId], references: [id])
+  topic         ExamTopic?   @relation(fields: [topicId], references: [id])
+
+  @@unique([examId, order])
+  @@map("questions")
+}
+
+model Option {
+  id         String   @id @default(cuid())
+  questionId String
+  content    String
+  order      Int
+  createdAt  DateTime @default(now())
+  answers    Answer[]
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("options")
+}
+
+model QuestionBank {
+  id        String             @id @default(cuid())
+  teacherId String
+  name      String
+  subject   String
+  level     String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  questions QuestionBankItem[]
+  teacher   User               @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("question_banks")
+}
+
+model QuestionBankItem {
+  id            String               @id @default(cuid())
+  bankId        String
+  type          QuestionType
+  content       String
+  correctAnswer String?
+  modelAnswer   String?
+  createdAt     DateTime             @default(now())
+  bank          QuestionBank         @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  options       QuestionBankOption[]
+
+  @@map("question_bank_items")
+}
+
+model QuestionBankOption {
+  id        String           @id @default(cuid())
+  itemId    String
+  content   String
+  order     Int
+  createdAt DateTime         @default(now())
+  item      QuestionBankItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("question_bank_options")
+}
+
+model ExamAttempt {
+  id          String            @id @default(cuid())
+  examId      String
+  studentId   String
+  status      ExamAttemptStatus @default(IN_PROGRESS)
+  score       Float?
+  totalScore  Float?
+  startedAt   DateTime          @default(now())
+  submittedAt DateTime?
+  expiresAt   DateTime
+  answers     Answer[]
+  exam        Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student     User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  payment     Payment?
+
+  @@unique([examId, studentId])
+  @@map("exam_attempts")
+}
+
+model Answer {
+  id         String      @id @default(cuid())
+  attemptId  String
+  questionId String
+  optionId   String?
+  content    String?
+  isCorrect  Boolean?
+  points     Float?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  attempt    ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  option     Option?     @relation(fields: [optionId], references: [id])
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("answers")
+}
+
+model Payment {
+  id                   String         @id @default(cuid())
+  studentId            String
+  examId               String?
+  attemptId            String?        @unique
+  amount               Float
+  status               PaymentStatus  @default(PENDING)
+  transactionId        String?        @unique
+  stripePaymentId      String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  payriffOrderId       String?        @unique
+  payriffTransactionId String?
+  splits               PaymentSplit[]
+  attempt              ExamAttempt?   @relation(fields: [attemptId], references: [id])
+  exam                 Exam?          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student              User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model PaymentSplit {
+  id        String   @id @default(cuid())
+  paymentId String
+  teacherId String?
+  adminId   String?
+  amount    Float
+  createdAt DateTime @default(now())
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  teacher   User?    @relation("TeacherSplits", fields: [teacherId], references: [id])
+
+  @@map("payment_splits")
+}
+
+model Withdrawal {
+  id             String           @id @default(cuid())
+  teacherId      String
+  amount         Float
+  status         WithdrawalStatus @default(PENDING)
+  bankAccount    String?
+  payriffOrderId String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  processedAt    DateTime?
+  teacher        User             @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("withdrawals")
 }
 
 enum UserRole {
@@ -36,237 +284,15 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum ExamAttemptStatus {
   IN_PROGRESS
   COMPLETED
   TIMED_OUT
 }
-
-model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  phone             String?   @unique
-  password          String
-  firstName         String
-  lastName          String
-  role              UserRole  @default(STUDENT)
-  balance           Float     @default(0) // Balans - yalnız şagirdlər üçün
-  resetToken        String?   // Şifrə bərpası üçün verifikasiya kodu
-  resetTokenExpires DateTime? // Şifrə bərpası kodunun müddəti
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  examsCreated     Exam[]            @relation("TeacherExams")
-  examAttempts     ExamAttempt[]
-  payments         Payment[]
-  questionBanks    QuestionBank[]
-  followedTeachers TeacherStudent[]  @relation("StudentFollows")
-  students         TeacherStudent[]  @relation("TeacherHasStudents")
-
-  @@map("users")
-}
-
-model Exam {
-  id          String      @id @default(cuid())
-  title       String
-  description String?
-  subject     String
-  level       String
-  status      ExamStatus  @default(DRAFT)
-  duration    Int         // minutes (price will be calculated from this)
-  version     Int         @default(1)
-  teacherId   String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  publishedAt DateTime?
-
-  teacher      User          @relation("TeacherExams", fields: [teacherId], references: [id])
-  topics       ExamTopic[]
-  questions    Question[]
-  attempts     ExamAttempt[]
-  payments     Payment[]
-  readingTexts ReadingText[]
-
-  @@map("exams")
-}
-
-model TeacherStudent {
-  id        String   @id @default(cuid())
-  teacherId String
-  studentId String
-  createdAt DateTime @default(now())
-
-  teacher User @relation("TeacherHasStudents", fields: [teacherId], references: [id], onDelete: Cascade)
-  student User @relation("StudentFollows", fields: [studentId], references: [id], onDelete: Cascade)
-
-  @@unique([teacherId, studentId])
-  @@map("teacher_students")
-}
-
-model ExamTopic {
-  id        String   @id @default(cuid())
-  examId    String
-  name      String
-  subject   String   // Fənn adı (məs: Riyaziyyat, Azərbaycan dili)
-  order     Int
-  points    Float    @default(1) // Default points per question in this topic
-  createdAt DateTime @default(now())
-
-  exam       Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
-  questions  Question[]
-
-  @@unique([examId, order])
-  @@map("exam_topics")
-}
-
-model ReadingText {
-  id        String   @id @default(cuid())
-  examId    String
-  content   String   @db.Text
-  order     Int
-  createdAt DateTime @default(now())
-
-  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
-  questions Question[]
-
-  @@unique([examId, order])
-  @@map("reading_texts")
-}
-
-model Question {
-  id            String       @id @default(cuid())
-  examId        String
-  topicId       String?
-  readingTextId String?
-  type          QuestionType
-  content       String       @db.Text
-  order         Int
-  points        Int          @default(1)
-  correctAnswer String?      // For multiple choice: option ID, for open-ended: model answer
-  modelAnswer   String?      @db.Text // For open-ended questions
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
-  topic       ExamTopic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
-  readingText ReadingText? @relation(fields: [readingTextId], references: [id], onDelete: SetNull)
-  options     Option[]
-  answers     Answer[]
-
-  @@unique([examId, order])
-  @@map("questions")
-}
-
-model Option {
-  id         String   @id @default(cuid())
-  questionId String
-  content    String   @db.Text
-  order      Int
-  createdAt  DateTime @default(now())
-
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  answers  Answer[]
-
-  @@map("options")
-}
-
-model QuestionBank {
-  id        String       @id @default(cuid())
-  teacherId String
-  name      String
-  subject   String
-  level     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  teacher   User       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  questions QuestionBankItem[]
-
-  @@map("question_banks")
-}
-
-model QuestionBankItem {
-  id          String       @id @default(cuid())
-  bankId      String
-  type        QuestionType
-  content     String       @db.Text
-  correctAnswer String?
-  modelAnswer String?      @db.Text
-  createdAt   DateTime     @default(now())
-
-  bank    QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
-  options QuestionBankOption[]
-
-  @@map("question_bank_items")
-}
-
-model QuestionBankOption {
-  id         String   @id @default(cuid())
-  itemId     String
-  content    String   @db.Text
-  order      Int
-  createdAt  DateTime @default(now())
-
-  item QuestionBankItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  @@map("question_bank_options")
-}
-
-model ExamAttempt {
-  id         String            @id @default(cuid())
-  examId     String
-  studentId  String
-  status     ExamAttemptStatus @default(IN_PROGRESS)
-  score      Float?
-  totalScore Float?
-  startedAt  DateTime          @default(now())
-  submittedAt DateTime?
-  expiresAt  DateTime          // Exam end time
-
-  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  answers Answer[]
-  payment Payment?
-
-  @@unique([examId, studentId])
-  @@map("exam_attempts")
-}
-
-model Answer {
-  id         String   @id @default(cuid())
-  attemptId  String
-  questionId String
-  optionId   String?  // For multiple choice
-  content    String?  @db.Text // For open-ended
-  isCorrect  Boolean?
-  points     Float?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  option   Option?    @relation(fields: [optionId], references: [id], onDelete: SetNull)
-
-  @@unique([attemptId, questionId])
-  @@map("answers")
-}
-
-model Payment {
-  id            String        @id @default(cuid())
-  studentId     String
-  examId        String?       // Nullable for balance top-ups
-  attemptId     String?       @unique
-  amount        Float
-  status        PaymentStatus @default(PENDING)
-  transactionId String?       @unique
-  stripePaymentId String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  student User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  exam    Exam?     @relation(fields: [examId], references: [id], onDelete: Cascade)
-  attempt ExamAttempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
-
-  @@map("payments")
-}
-

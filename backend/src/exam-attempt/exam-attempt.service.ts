@@ -16,6 +16,9 @@ export class ExamAttemptService {
     // Check if exam exists and is published
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
+      include: {
+        teacher: true,
+      },
     });
 
     if (!exam) {
@@ -106,7 +109,7 @@ export class ExamAttemptService {
       });
 
       // Create payment record
-      await this.prisma.payment.create({
+      const payment = await this.prisma.payment.create({
         data: {
           studentId,
           examId,
@@ -116,6 +119,9 @@ export class ExamAttemptService {
           transactionId: `BAL-DED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         },
       });
+
+      // Split payment between teacher and admin (50/50)
+      await this.splitPayment(payment.id, examPrice, exam.teacherId);
     }
 
     // Check if expired
@@ -1126,5 +1132,46 @@ export class ExamAttemptService {
       isCorrect,
       totalScore: earnedScore,
     };
+  }
+
+  private async splitPayment(
+    paymentId: string,
+    amount: number,
+    teacherId: string,
+  ) {
+    // Split 50/50 between teacher and admin
+    const teacherAmount = amount / 2;
+    const adminAmount = amount / 2;
+
+    // Get admin user
+    const admin = await this.prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+    });
+
+    // Create payment splits
+    await this.prisma.paymentSplit.createMany({
+      data: [
+        {
+          paymentId,
+          teacherId: teacherId,
+          amount: teacherAmount,
+        },
+        {
+          paymentId,
+          adminId: admin?.id || null,
+          amount: adminAmount,
+        },
+      ],
+    });
+
+    // Update teacher balance
+    await this.prisma.user.update({
+      where: { id: teacherId },
+      data: {
+        teacherBalance: {
+          increment: teacherAmount,
+        },
+      },
+    });
   }
 }

@@ -136,9 +136,7 @@ export default function ProfileClient({
           )} AZN balansınıza əlavə edildi.`,
         });
 
-        setTimeout(() => {
-          router.push("/dashboard?balanceAdded=true");
-        }, 2000);
+        router.push("/dashboard?balanceAdded=true");
       }
     } catch (err: any) {
       console.error("Payment error:", err);

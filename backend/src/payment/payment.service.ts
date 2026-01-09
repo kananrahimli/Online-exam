@@ -3,13 +3,19 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentStatus, ExamAttemptStatus } from '@prisma/client';
+import { PayriffService } from './payriff.service';
 
 @Injectable()
 export class PaymentService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private payriffService: PayriffService,
+    private configService: ConfigService,
+  ) {}
 
   async create(studentId: string, createPaymentDto: CreatePaymentDto) {
     const { examId } = createPaymentDto;
@@ -17,6 +23,9 @@ export class PaymentService {
     // Check if exam exists
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
+      include: {
+        teacher: true,
+      },
     });
 
     if (!exam) {
@@ -39,52 +48,59 @@ export class PaymentService {
       throw new BadRequestException('Bu imtahana artıq çıxışınız var');
     }
 
-    // Calculate expiry date (exam duration from now)
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + exam.duration);
-
-    // Create exam attempt directly (payment simulation - auto-approved)
-    const attempt = await this.prisma.examAttempt.create({
-      data: {
-        examId,
-        studentId,
-        expiresAt,
-        status: ExamAttemptStatus.IN_PROGRESS,
-      },
-    });
-
-    // Create payment record (marked as completed for record keeping)
     // Calculate price based on duration (fixed pricing)
     let amount = 3; // default 1 saat
     if (exam.duration === 60) amount = 3;
     else if (exam.duration === 120) amount = 5;
     else if (exam.duration === 180) amount = 10;
 
+    // Create payment record with PENDING status
     const payment = await this.prisma.payment.create({
       data: {
         studentId,
         examId,
-        attemptId: attempt.id,
         amount,
-        status: PaymentStatus.COMPLETED,
-        transactionId: `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        status: PaymentStatus.PENDING,
+        transactionId: `EXAM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       },
     });
 
-    // Ödəniş uğurlu olduqdan sonra balansa əlavə et
-    await this.prisma.user.update({
-      where: { id: studentId },
+    // Create PayRiff order
+    const baseUrl =
+      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
+    const callbackUrl = `${baseUrl}/payments/callback`;
+
+    const payriffResponse = await this.payriffService.createOrder({
+      amount: amount,
+      language: 'AZ',
+      currency: 'AZN',
+      description: `İmtahan ödənişi - ${exam.title}`,
+      callbackUrl: callbackUrl,
+      cardSave: false,
+      operation: 'PURCHASE',
+      metadata: {
+        paymentId: payment.id,
+        studentId: studentId,
+        examId: examId,
+        type: 'exam_payment',
+      },
+    });
+
+    // Update payment with PayRiff order ID
+    await this.prisma.payment.update({
+      where: { id: payment.id },
       data: {
-        balance: {
-          increment: amount,
-        },
+        payriffOrderId: payriffResponse.payload.orderId,
+        payriffTransactionId: payriffResponse.payload.transactionId.toString(),
       },
     });
 
     return {
       paymentId: payment.id,
-      attemptId: attempt.id,
-      message: 'Ödəniş uğurla tamamlandı',
+      amount,
+      paymentUrl: payriffResponse.payload.paymentUrl,
+      orderId: payriffResponse.payload.orderId,
+      message: 'Ödəniş yaradıldı. Zəhmət olmasa ödənişi tamamlayın.',
     };
   }
 
@@ -92,7 +108,11 @@ export class PaymentService {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
-        exam: true,
+        exam: {
+          include: {
+            teacher: true,
+          },
+        },
         attempt: true,
       },
     });
@@ -109,8 +129,38 @@ export class PaymentService {
       };
     }
 
-    // If payment is pending, mark as completed
+    // If payment is pending, check PayRiff status
     if (payment.status === PaymentStatus.PENDING) {
+      if (!payment.payriffOrderId) {
+        throw new BadRequestException('PayRiff order ID tapılmadı');
+      }
+
+      // Get order info from PayRiff
+      const orderInfo = await this.payriffService.getOrderInfo(
+        payment.payriffOrderId,
+      );
+
+      // Check if payment is successful
+      // PayRiff v2 API may return different status values
+      const paymentStatus = orderInfo.payload.paymentStatus?.toUpperCase();
+      const isPaid =
+        paymentStatus === 'PAID' ||
+        paymentStatus === 'APPROVED' ||
+        paymentStatus === 'COMPLETED';
+
+      if (!isPaid) {
+        // Update payment status to failed
+        await this.prisma.payment.update({
+          where: { id: paymentId },
+          data: {
+            status: PaymentStatus.FAILED,
+          },
+        });
+
+        throw new BadRequestException('Ödəniş uğursuz oldu');
+      }
+
+      // Payment is successful, process it
       const amount = payment.amount || 0;
 
       // If this is a balance payment (no examId), process it directly
@@ -120,6 +170,8 @@ export class PaymentService {
           where: { id: paymentId },
           data: {
             status: PaymentStatus.COMPLETED,
+            payriffTransactionId:
+              orderInfo.payload.transactions[0]?.uuid || null,
           },
         });
 
@@ -139,7 +191,7 @@ export class PaymentService {
         };
       }
 
-      // If this is an exam payment, handle exam attempt
+      // If this is an exam payment, handle exam attempt and split payment
       if (!payment.exam) {
         throw new NotFoundException('İmtahan tapılmadı');
       }
@@ -175,22 +227,13 @@ export class PaymentService {
         data: {
           status: PaymentStatus.COMPLETED,
           amount: finalAmount,
-          transactionId:
-            payment.transactionId ||
-            `SIM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          payriffTransactionId: orderInfo.payload.transactions[0]?.uuid || null,
           attemptId: attempt.id,
         },
       });
 
-      // Ödəniş uğurlu olduqdan sonra balansa əlavə et
-      await this.prisma.user.update({
-        where: { id: payment.studentId },
-        data: {
-          balance: {
-            increment: finalAmount,
-          },
-        },
-      });
+      // Split payment between teacher and admin (50/50)
+      await this.splitPayment(paymentId, finalAmount, payment.exam.teacherId);
 
       return {
         message: 'Ödəniş uğurlu',
@@ -199,6 +242,162 @@ export class PaymentService {
     }
 
     throw new BadRequestException('Ödəniş tamamlanmayıb');
+  }
+
+  private async splitPayment(
+    paymentId: string,
+    amount: number,
+    teacherId: string,
+  ) {
+    // Split 50/50 between teacher and admin
+    const teacherAmount = amount / 2;
+    const adminAmount = amount / 2;
+
+    // Get admin user
+    const admin = await this.prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+    });
+
+    // Create payment splits
+    await this.prisma.paymentSplit.createMany({
+      data: [
+        {
+          paymentId,
+          teacherId: teacherId,
+          amount: teacherAmount,
+        },
+        {
+          paymentId,
+          adminId: admin?.id || null,
+          amount: adminAmount,
+        },
+      ],
+    });
+
+    // Update teacher balance
+    await this.prisma.user.update({
+      where: { id: teacherId },
+      data: {
+        teacherBalance: {
+          increment: teacherAmount,
+        },
+      },
+    });
+  }
+
+  async handleCallback(orderId: string) {
+    // Get order info from PayRiff
+    const orderInfo = await this.payriffService.getOrderInfo(orderId);
+
+    // Find payment by order ID
+    const payment = await this.prisma.payment.findUnique({
+      where: { payriffOrderId: orderId },
+      include: {
+        exam: {
+          include: {
+            teacher: true,
+          },
+        },
+        attempt: true,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Ödəniş tapılmadı');
+    }
+
+    // If already processed, return
+    if (payment.status === PaymentStatus.COMPLETED) {
+      return {
+        message: 'Ödəniş artıq emal olunub',
+        payment: payment,
+      };
+    }
+
+    // Check payment status
+    // PayRiff v2 API may return different status values
+    const paymentStatus = orderInfo.payload.paymentStatus?.toUpperCase();
+    const isPaid =
+      paymentStatus === 'PAID' ||
+      paymentStatus === 'APPROVED' ||
+      paymentStatus === 'COMPLETED';
+
+    if (isPaid) {
+      const amount = payment.amount || 0;
+
+      // If this is a balance payment
+      if (!payment.examId) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.COMPLETED,
+            payriffTransactionId:
+              orderInfo.payload.transactions[0]?.uuid || null,
+          },
+        });
+
+        await this.prisma.user.update({
+          where: { id: payment.studentId },
+          data: {
+            balance: {
+              increment: amount,
+            },
+          },
+        });
+
+        return {
+          message: 'Ödəniş uğurlu. Balansınız artırıldı.',
+        };
+      }
+
+      // If this is an exam payment
+      if (payment.exam) {
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + payment.exam.duration);
+
+        let attempt = payment.attempt;
+        if (!attempt) {
+          attempt = await this.prisma.examAttempt.create({
+            data: {
+              examId: payment.examId,
+              studentId: payment.studentId,
+              expiresAt,
+              status: ExamAttemptStatus.IN_PROGRESS,
+            },
+          });
+        }
+
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.COMPLETED,
+            payriffTransactionId:
+              orderInfo.payload.transactions[0]?.uuid || null,
+            attemptId: attempt.id,
+          },
+        });
+
+        // Split payment
+        await this.splitPayment(payment.id, amount, payment.exam.teacherId);
+
+        return {
+          message: 'Ödəniş uğurlu',
+          attemptId: attempt.id,
+        };
+      }
+    } else {
+      // Payment failed
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.FAILED,
+        },
+      });
+
+      return {
+        message: 'Ödəniş uğursuz oldu',
+      };
+    }
   }
 
   async cancelPayment(paymentId: string) {
@@ -237,7 +436,7 @@ export class PaymentService {
       throw new BadRequestException('Məbləğ müsbət olmalıdır');
     }
 
-    // Create payment record with PENDING status (examId is null for balance top-ups)
+    // Create payment record with PENDING status
     const payment = await this.prisma.payment.create({
       data: {
         studentId,
@@ -248,11 +447,388 @@ export class PaymentService {
       },
     });
 
-    // Return payment ID - frontend will verify payment
+    // Create PayRiff order
+    const baseUrl =
+      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
+    const callbackUrl = `${baseUrl}/payments/callback`;
+
+    const payriffResponse = await this.payriffService.createOrder({
+      amount: amount,
+      language: 'AZ',
+      currency: 'AZN',
+      description: `Balans artırma - ${amount} AZN`,
+      callbackUrl: callbackUrl,
+      cardSave: false,
+      operation: 'PURCHASE',
+      metadata: {
+        paymentId: payment.id,
+        studentId: studentId,
+        type: 'balance_topup',
+      },
+    });
+
+    // Update payment with PayRiff order ID
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        payriffOrderId: payriffResponse.payload.orderId,
+        payriffTransactionId: payriffResponse.payload.transactionId.toString(),
+      },
+    });
+
     return {
       paymentId: payment.id,
       amount,
+      paymentUrl: payriffResponse.payload.paymentUrl,
+      orderId: payriffResponse.payload.orderId,
       message: 'Ödəniş yaradıldı. Zəhmət olmasa ödənişi tamamlayın.',
     };
+  }
+
+  async getTeacherBalance(teacherId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        id: true,
+        teacherBalance: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('İstifadəçi tapılmadı');
+    }
+
+    if (user.role !== 'TEACHER') {
+      throw new BadRequestException('Yalnız müəllimlər balans görə bilər');
+    }
+
+    return {
+      balance: user.teacherBalance,
+    };
+  }
+
+  async createWithdrawal(
+    teacherId: string,
+    amount: number,
+    bankAccount?: string,
+    notes?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        id: true,
+        teacherBalance: true,
+        role: true,
+        bankAccount: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('İstifadəçi tapılmadı');
+    }
+
+    if (user.role !== 'TEACHER') {
+      throw new BadRequestException('Yalnız müəllimlər çıxarış edə bilər');
+    }
+
+    if (amount <= 0) {
+      throw new BadRequestException('Məbləğ müsbət olmalıdır');
+    }
+
+    if (user.teacherBalance < amount) {
+      throw new BadRequestException(
+        `Balansınız kifayət etmir. Balansınız: ${user.teacherBalance.toFixed(2)} AZN`,
+      );
+    }
+
+    // Get bank account info (use provided or saved)
+    const bankAccountInfo = bankAccount || user.bankAccount;
+    if (!bankAccountInfo) {
+      throw new BadRequestException(
+        'Bank hesabı məlumatları təmin edilməyib. Zəhmət olmasa bank hesabı məlumatlarınızı əlavə edin.',
+      );
+    }
+
+    // Parse bank account info
+    let parsedBankAccount: {
+      accountNumber: string;
+      bankName: string;
+      accountHolderName: string;
+      iban?: string;
+      phoneNumber?: string;
+    };
+
+    try {
+      parsedBankAccount = JSON.parse(bankAccountInfo);
+    } catch (error) {
+      throw new BadRequestException(
+        'Bank hesabı məlumatları düzgün formatda deyil',
+      );
+    }
+
+    // Validate bank account fields
+    if (
+      !parsedBankAccount.accountNumber ||
+      !parsedBankAccount.bankName ||
+      !parsedBankAccount.accountHolderName
+    ) {
+      throw new BadRequestException(
+        'Bank hesabı məlumatları tam deyil. Hesab nömrəsi, bank adı və hesab sahibinin adı tələb olunur.',
+      );
+    }
+
+    // Create withdrawal record with PROCESSING status (will be updated after PayRiff response)
+    const withdrawal = await this.prisma.withdrawal.create({
+      data: {
+        teacherId,
+        amount,
+        status: 'PROCESSING',
+        bankAccount: bankAccountInfo,
+        notes: notes || null,
+      },
+    });
+
+    // Automatically transfer money via PayRiff
+    try {
+      const transferResult = await this.payriffService.transferToBank(
+        amount,
+        parsedBankAccount,
+        notes || `Müəllim çıxarışı - ${user.firstName} ${user.lastName}`,
+      );
+
+      // Update withdrawal with PayRiff order ID if available
+      await this.prisma.withdrawal.update({
+        where: { id: withdrawal.id },
+        data: {
+          payriffOrderId: transferResult.payload?.orderId || null,
+          status: 'COMPLETED',
+          processedAt: new Date(),
+        },
+      });
+
+      // Deduct from teacher balance
+      await this.prisma.user.update({
+        where: { id: teacherId },
+        data: {
+          teacherBalance: {
+            decrement: amount,
+          },
+        },
+      });
+
+      const methodMessage =
+        transferResult.method === 'topup'
+          ? 'Pul MPAY wallet-ə köçürüldü (transfer API mövcud olmadığı üçün topup istifadə olundu).'
+          : 'Pul bank hesabınıza köçürüldü.';
+
+      return {
+        withdrawalId: withdrawal.id,
+        amount,
+        message: `Çıxarış uğurla tamamlandı. ${methodMessage}`,
+        transferResult: transferResult,
+        method: transferResult.method,
+      };
+    } catch (error: any) {
+      // If PayRiff transfer fails, mark withdrawal as FAILED
+      await this.prisma.withdrawal.update({
+        where: { id: withdrawal.id },
+        data: {
+          status: 'FAILED',
+        },
+      });
+
+      // Return error message
+      throw new BadRequestException(
+        error.message ||
+          'PayRiff transfer uğursuz oldu. Zəhmət olmasa daha sonra yenidən cəhd edin və ya PayRiff support ilə əlaqə saxlayın.',
+      );
+    }
+  }
+
+  async getWithdrawals(teacherId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('İstifadəçi tapılmadı');
+    }
+
+    if (user.role !== 'TEACHER') {
+      throw new BadRequestException('Yalnız müəllimlər çıxarışları görə bilər');
+    }
+
+    const withdrawals = await this.prisma.withdrawal.findMany({
+      where: { teacherId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return withdrawals;
+  }
+
+  async processWithdrawal(
+    withdrawalId: string,
+    adminId: string,
+    payriffOrderId?: string,
+  ) {
+    const withdrawal = await this.prisma.withdrawal.findUnique({
+      where: { id: withdrawalId },
+      include: {
+        teacher: true,
+      },
+    });
+
+    if (!withdrawal) {
+      throw new NotFoundException('Çıxarış tapılmadı');
+    }
+
+    if (withdrawal.status !== 'PENDING') {
+      throw new BadRequestException('Çıxarış artıq emal olunub');
+    }
+
+    // Check admin
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminId },
+      select: { role: true },
+    });
+
+    if (!admin || admin.role !== 'ADMIN') {
+      throw new BadRequestException('Yalnız admin çıxarış edə bilər');
+    }
+
+    // Check if teacher has enough balance
+    if (withdrawal.teacher.teacherBalance < withdrawal.amount) {
+      throw new BadRequestException('Müəllimin balansı kifayət etmir');
+    }
+
+    // Update withdrawal status to PROCESSING
+    await this.prisma.withdrawal.update({
+      where: { id: withdrawalId },
+      data: {
+        status: 'PROCESSING',
+        payriffOrderId: payriffOrderId || null,
+      },
+    });
+
+    // Deduct from teacher balance
+    await this.prisma.user.update({
+      where: { id: withdrawal.teacherId },
+      data: {
+        teacherBalance: {
+          decrement: withdrawal.amount,
+        },
+      },
+    });
+
+    // Here you would integrate with PayRiff to transfer money
+    // For now, we'll mark it as completed
+    // In production, you would:
+    // 1. Call PayRiff transfer API
+    // 2. Wait for confirmation
+    // 3. Update status to COMPLETED
+
+    // For now, mark as completed (in production, wait for PayRiff confirmation)
+    await this.prisma.withdrawal.update({
+      where: { id: withdrawalId },
+      data: {
+        status: 'COMPLETED',
+        processedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Çıxarış uğurla emal olundu',
+      withdrawal: withdrawal,
+    };
+  }
+
+  async updateBankAccount(
+    teacherId: string,
+    bankAccount: {
+      accountNumber: string;
+      bankName: string;
+      accountHolderName: string;
+      iban?: string;
+      phoneNumber?: string;
+    },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('İstifadəçi tapılmadı');
+    }
+
+    if (user.role !== 'TEACHER') {
+      throw new BadRequestException(
+        'Yalnız müəllimlər bank hesabı məlumatları əlavə edə bilər',
+      );
+    }
+
+    // Save bank account as JSON string
+    const bankAccountJson = JSON.stringify(bankAccount);
+
+    await this.prisma.user.update({
+      where: { id: teacherId },
+      data: {
+        bankAccount: bankAccountJson,
+      },
+    });
+
+    return {
+      message: 'Bank hesabı məlumatları uğurla saxlanıldı',
+      bankAccount: bankAccount,
+    };
+  }
+
+  async getBankAccount(teacherId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        id: true,
+        role: true,
+        bankAccount: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('İstifadəçi tapılmadı');
+    }
+
+    if (user.role !== 'TEACHER') {
+      throw new BadRequestException(
+        'Yalnız müəllimlər bank hesabı məlumatlarını görə bilər',
+      );
+    }
+
+    if (!user.bankAccount) {
+      return {
+        bankAccount: null,
+        message: 'Bank hesabı məlumatları əlavə edilməyib',
+      };
+    }
+
+    try {
+      const bankAccount = JSON.parse(user.bankAccount);
+      return {
+        bankAccount: bankAccount,
+      };
+    } catch (error) {
+      return {
+        bankAccount: null,
+        message: 'Bank hesabı məlumatları düzgün formatda deyil',
+      };
+    }
   }
 }

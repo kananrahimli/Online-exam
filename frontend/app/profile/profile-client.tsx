@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -29,6 +29,7 @@ export default function ProfileClient({
   initialMyTeachers,
 }: ProfileClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser, user } = useAuthStore();
   const { showConfirm, AlertComponent } = useAlert();
   const [myTeachers, setMyTeachers] = useState<Teacher[]>(initialMyTeachers);
@@ -51,16 +52,138 @@ export default function ProfileClient({
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState("");
   const [addingBalance, setAddingBalance] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // Current user state (may be updated)
+  // ✅ HYDRATION FIX: Client-side balance state
+  const [clientBalance, setClientBalance] = useState<number | null>(null);
+
+  // Teacher withdrawal states
+  const [teacherBalance, setTeacherBalance] = useState<number>(0);
+  const [bankAccount, setBankAccount] = useState<any>(null);
+  const [showBankAccountModal, setShowBankAccountModal] = useState(false);
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [loadingBankAccount, setLoadingBankAccount] = useState(false);
+  const [bankAccountForm, setBankAccountForm] = useState({
+    accountNumber: "",
+    bankName: "",
+    accountHolderName: "",
+    iban: "",
+    phoneNumber: "",
+  });
+
+  // Current user state
   const currentUser = user || initialUser;
 
+  // ✅ HYDRATION FIX 1: Initialize client state
   useEffect(() => {
-    // Sync initial user to store
-    if (initialUser) {
+    setIsClient(true);
+
+    // Set initial balance from props
+    if (initialUser?.balance !== undefined && clientBalance === null) {
+      setClientBalance(initialUser.balance);
+    }
+
+    // Set initial teacher balance from props
+    if (initialUser?.teacherBalance !== undefined) {
+      setTeacherBalance(initialUser.teacherBalance);
+    }
+
+    // Sync store if empty
+    if (initialUser && !user) {
       setUser(initialUser);
     }
-  }, [initialUser, setUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount to prevent hydration mismatch
+
+  // Fetch teacher balance and bank account for teachers
+  useEffect(() => {
+    if (currentUser?.role === "TEACHER") {
+      // Set initial teacher balance from user
+      if (initialUser?.teacherBalance !== undefined) {
+        setTeacherBalance(initialUser.teacherBalance);
+      }
+
+      // Fetch teacher balance from API
+      api
+        .get("/payments/teacher/balance")
+        .then((response) => {
+          const balance = response.data.balance || 0;
+          setTeacherBalance(balance);
+          // Update user in store
+          if (user) {
+            setUser({ ...user, teacherBalance: balance });
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch teacher balance:", err);
+        });
+
+      // Fetch bank account
+      api
+        .get("/payments/teacher/bank-account")
+        .then((response) => {
+          if (response.data.bankAccount) {
+            setBankAccount(response.data.bankAccount);
+            setBankAccountForm({
+              accountNumber: response.data.bankAccount.accountNumber || "",
+              bankName: response.data.bankAccount.bankName || "",
+              accountHolderName:
+                response.data.bankAccount.accountHolderName || "",
+              iban: response.data.bankAccount.iban || "",
+              phoneNumber: response.data.bankAccount.phoneNumber || "",
+            });
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch bank account:", err);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.role]); // Only depend on role to avoid infinite loop
+
+  // Payment verification
+  useEffect(() => {
+    const paymentStatus = searchParams?.get("payment");
+    const paymentId = searchParams?.get("paymentId");
+
+    if (paymentStatus === "success" && paymentId) {
+      api
+        .post(`/payments/verify/${paymentId}`)
+        .then(async (verifyResponse) => {
+          const paymentAmount = verifyResponse.data.payment?.amount || 0;
+          const updatedUserResponse = await api.get("/auth/me");
+          const updatedUser = updatedUserResponse.data;
+
+          setUser(updatedUser);
+          setClientBalance(updatedUser.balance); // ✅ Sync balance
+
+          setMessage({
+            type: "success",
+            text: `Ödəniş uğurlu! ${paymentAmount.toFixed(
+              2
+            )} AZN əlavə edildi.`,
+          });
+
+          setTimeout(() => {
+            router.replace("/profile");
+          }, 3000);
+        })
+        .catch((err: any) => {
+          setMessage({
+            type: "error",
+            text: err.response?.data?.message || "Ödəniş yoxlanıla bilmədi",
+          });
+        });
+    } else if (paymentStatus === "error") {
+      setMessage({
+        type: "error",
+        text: searchParams?.get("message") || "Ödəniş xətası",
+      });
+      router.replace("/profile");
+    }
+  }, [searchParams, router, setUser]);
 
   const handleSaveProfile = async () => {
     if (!currentUser) return;
@@ -71,7 +194,7 @@ export default function ProfileClient({
     try {
       const response = await api.put("/auth/profile", profileData);
       setUser(response.data);
-      setMessage({ type: "success", text: "Məlumatlarınız uğurla yeniləndi" });
+      setMessage({ type: "success", text: "Məlumatlar yeniləndi" });
       setEditing(false);
     } catch (err: any) {
       setMessage({
@@ -85,10 +208,21 @@ export default function ProfileClient({
 
   const handleAddBalance = async () => {
     if (!balanceAmount || parseFloat(balanceAmount) <= 0) {
-      setMessage({
-        type: "error",
-        text: "Zəhmət olmasa düzgün məbləğ daxil edin",
-      });
+      setMessage({ type: "error", text: "Düzgün məbləğ daxil edin" });
+      return;
+    }
+
+    const confirmed = await showConfirm({
+      message: `${parseFloat(balanceAmount).toFixed(
+        2
+      )} AZN ödəniş etmək istədiyinizə əminsiniz?`,
+      type: "warning",
+      confirmButtonText: "Bəli, ödəniş et",
+      cancelButtonText: "Ləğv et",
+    });
+
+    if (!confirmed) {
+      setMessage({ type: "error", text: "Ödəniş ləğv edildi" });
       return;
     }
 
@@ -100,51 +234,12 @@ export default function ProfileClient({
         amount: parseFloat(balanceAmount),
       });
 
-      const confirmed = await showConfirm({
-        message: `${parseFloat(balanceAmount).toFixed(
-          2
-        )} AZN məbləğində ödəniş etmək istədiyinizə əminsiniz?`,
-        type: "warning",
-        confirmButtonText: "Bəli, ödəniş et",
-        cancelButtonText: "Ləğv et",
-        onConfirm: () => {},
-      });
-
-      if (!confirmed) {
-        setMessage({
-          type: "error",
-          text: "Ödəniş ləğv edildi",
-        });
-        return;
-      }
-
-      const verifyResponse = await api.post(
-        `/payments/verify/${response.data.paymentId}`
-      );
-
-      if (verifyResponse.data && verifyResponse.data.message) {
-        const updatedUser = await api.get("/auth/me");
-        setUser(updatedUser.data);
-
-        setShowAddBalanceModal(false);
-        setBalanceAmount("");
-
-        setMessage({
-          type: "success",
-          text: `Ödəniş uğurlu oldu! ${parseFloat(balanceAmount).toFixed(
-            2
-          )} AZN balansınıza əlavə edildi.`,
-        });
-
-        router.push("/dashboard?balanceAdded=true");
-      }
+      window.location.href = response.data.paymentUrl;
     } catch (err: any) {
-      console.error("Payment error:", err);
       setMessage({
         type: "error",
-        text: err.response?.data?.message || "Ödəniş zamanı xəta baş verdi",
+        text: err.response?.data?.message || "Ödəniş xətası",
       });
-    } finally {
       setAddingBalance(false);
     }
   };
@@ -163,19 +258,11 @@ export default function ProfileClient({
       const toRemove = currentTeacherIds.filter(
         (id) => !selectedTeachers.includes(id)
       );
+
       await saveTeachers(toAdd, toRemove);
       router.refresh();
 
-      // // Refresh teachers
-      // const response = await api.get("/teacher-student/teachers");
-      // const { myTeachers: myTeachersData } = response.data;
-      // setMyTeachers(myTeachersData);
-      // setSelectedTeachers(myTeachersData.map((t: Teacher) => t.id));
-
-      setMessage({
-        type: "success",
-        text: "Müəllimləriniz uğurla yeniləndi",
-      });
+      setMessage({ type: "success", text: "Müəllimlər yeniləndi" });
     } catch (err: any) {
       setMessage({
         type: "error",
@@ -183,6 +270,121 @@ export default function ProfileClient({
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ✅ HYDRATION SAFE: Balance display logic
+  const getBalanceDisplay = () => {
+    if (!isClient || clientBalance === null) {
+      return initialUser?.balance?.toFixed(2) ?? "0.00";
+    }
+    return clientBalance.toFixed(2);
+  };
+
+  // Teacher withdrawal handlers
+  const handleSaveBankAccount = async () => {
+    if (
+      !bankAccountForm.accountNumber ||
+      !bankAccountForm.bankName ||
+      !bankAccountForm.accountHolderName
+    ) {
+      setMessage({
+        type: "error",
+        text: "Zəhmət olmasa hesab nömrəsi, bank adı və hesab sahibinin adını daxil edin",
+      });
+      return;
+    }
+
+    setLoadingBankAccount(true);
+    setMessage(null);
+
+    try {
+      await api.post("/payments/teacher/bank-account", bankAccountForm);
+      setBankAccount(bankAccountForm);
+      setShowBankAccountModal(false);
+      setMessage({
+        type: "success",
+        text: "Bank hesabı məlumatları uğurla saxlanıldı",
+      });
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err.response?.data?.message || "Xəta baş verdi",
+      });
+    } finally {
+      setLoadingBankAccount(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawalAmount || parseFloat(withdrawalAmount) <= 0) {
+      setMessage({ type: "error", text: "Düzgün məbləğ daxil edin" });
+      return;
+    }
+
+    const amount = parseFloat(withdrawalAmount);
+    if (amount > teacherBalance) {
+      setMessage({
+        type: "error",
+        text: "Balansınız kifayət etmir",
+      });
+      return;
+    }
+
+    if (!bankAccount) {
+      setMessage({
+        type: "error",
+        text: "Zəhmət olmasa əvvəlcə bank hesabı məlumatlarını təyin edin",
+      });
+      setShowBankAccountModal(true);
+      return;
+    }
+
+    const confirmed = await showConfirm({
+      message: `${amount.toFixed(
+        2
+      )} AZN məbləğində pulu bank hesabınıza köçürmək istədiyinizə əminsiniz?`,
+      type: "warning",
+      confirmButtonText: "Bəli, köçür",
+      cancelButtonText: "Ləğv et",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setWithdrawing(true);
+    setMessage(null);
+
+    try {
+      const response = await api.post("/payments/teacher/withdrawals", {
+        amount: amount,
+        bankAccount: JSON.stringify(bankAccount),
+        notes: `Müəllim çıxarışı - ${amount.toFixed(2)} AZN`,
+      });
+
+      // Update teacher balance
+      const updatedBalance = teacherBalance - amount;
+      setTeacherBalance(updatedBalance);
+
+      // Update user in store
+      const updatedUser = { ...currentUser, teacherBalance: updatedBalance };
+      setUser(updatedUser);
+
+      setMessage({
+        type: "success",
+        text: response.data.message || "Pul uğurla bank hesabınıza köçürüldü",
+      });
+
+      setShowWithdrawalModal(false);
+      setWithdrawalAmount("");
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err.response?.data?.message || "Çıxarış zamanı xəta baş verdi",
+      });
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -225,7 +427,6 @@ export default function ProfileClient({
                 )}
                 <Link
                   href="/dashboard"
-                  aria-label="İdarə panelinə qayıt"
                   className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   İdarə paneli
@@ -233,7 +434,6 @@ export default function ProfileClient({
                 <button
                   onClick={() => {
                     useAuthStore.getState().logout();
-                    // logout() already redirects to /login
                   }}
                   className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
                 >
@@ -404,7 +604,7 @@ export default function ProfileClient({
               </div>
             </div>
 
-            {/* Balance Section */}
+            {/* ✅ HYDRATION FIXED Balance Section */}
             {currentUser?.role === "STUDENT" && (
               <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
@@ -415,7 +615,7 @@ export default function ProfileClient({
                 </h2>
                 <div className="mb-4">
                   <div className="text-4xl font-bold text-indigo-600 mb-2">
-                    {(currentUser?.balance || 0).toFixed(2)} AZN
+                    {getBalanceDisplay()} AZN
                   </div>
                   <p className="text-sm text-gray-500 italic">
                     <span role="img" aria-label="İpucu">
@@ -506,24 +706,117 @@ export default function ProfileClient({
               </div>
             )}
 
-            {/* Teacher Section */}
+            {/* Teacher Balance & Withdrawal Section */}
             {currentUser?.role === "TEACHER" && (
-              <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Müəllim Paneli
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  Bu panel müəllimlər üçündür. İmtahanlarınızı yaratmaq və idarə
-                  etmək üçün idarə panelindən istifadə edin.
-                </p>
-                <Link
-                  href="/dashboard"
-                  aria-label="İdarə panelinə qayıt"
-                  className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
-                >
-                  İdarə panelinə qayıt <span aria-hidden="true">→</span>
-                </Link>
-              </div>
+              <>
+                <div className="bg-white/80 backdrop-blur-lg rounded-xl shadow-xl p-8 border border-gray-200">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                    Müəllim Balansı{" "}
+                    <span role="img" aria-label="Pul">
+                      💰
+                    </span>
+                  </h2>
+
+                  {message && (
+                    <div
+                      className={`mb-4 px-4 py-3 rounded-lg ${
+                        message.type === "success"
+                          ? "bg-green-50 border-l-4 border-green-500 text-green-700"
+                          : "bg-red-50 border-l-4 border-red-500 text-red-700"
+                      }`}
+                    >
+                      <p className="font-medium">{message.text}</p>
+                    </div>
+                  )}
+
+                  <div className="mb-6">
+                    <div className="text-4xl font-bold text-indigo-600 mb-2">
+                      {teacherBalance.toFixed(2)} AZN
+                    </div>
+                    <p className="text-sm text-gray-500 italic">
+                      <span role="img" aria-label="İpucu">
+                        💡
+                      </span>{" "}
+                      Bu balans imtahan ödənişlərindən qazandığınız gəlirdir.
+                      Bank hesabınıza avtomatik köçürə bilərsiniz.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {!bankAccount ? (
+                      <button
+                        onClick={() => setShowBankAccountModal(true)}
+                        className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-semibold hover:from-orange-700 hover:to-red-700 transition-all shadow-lg hover:shadow-xl"
+                      >
+                        Bank Hesabı Təyin Et{" "}
+                        <span role="img" aria-label="Bank">
+                          🏦
+                        </span>
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setShowWithdrawalModal(true)}
+                          disabled={teacherBalance <= 0}
+                          className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                        >
+                          Pul Çıxart{" "}
+                          <span role="img" aria-label="Çıxart">
+                            💸
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => setShowBankAccountModal(true)}
+                          className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
+                        >
+                          Bank Hesabını Dəyiş{" "}
+                          <span role="img" aria-label="Redaktə">
+                            ✏️
+                          </span>
+                        </button>
+                      </>
+                    )}
+                    <Link
+                      href="/dashboard"
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl text-center"
+                    >
+                      İdarə panelinə qayıt <span aria-hidden="true">→</span>
+                    </Link>
+                  </div>
+
+                  {bankAccount && (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Bank Hesabı Məlumatları
+                      </h3>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p>
+                          <strong>Bank:</strong> {bankAccount.bankName}
+                        </p>
+                        <p>
+                          <strong>Hesab Sahibi:</strong>{" "}
+                          {bankAccount.accountHolderName}
+                        </p>
+                        <p>
+                          <strong>Hesab Nömrəsi:</strong>{" "}
+                          {bankAccount.accountNumber}
+                        </p>
+                        {bankAccount.iban && (
+                          <p>
+                            <strong>IBAN:</strong> {bankAccount.iban}
+                          </p>
+                        )}
+                        {bankAccount.phoneNumber && (
+                          <p>
+                            <strong>Telefon:</strong> {bankAccount.phoneNumber}{" "}
+                            (MPAY üçün)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
 
@@ -589,6 +882,219 @@ export default function ProfileClient({
                     className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {addingBalance ? "Yüklənir..." : "Artır"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bank Account Modal */}
+          {showBankAccountModal && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative max-h-[90vh] overflow-y-auto">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  Bank Hesabı Məlumatları{" "}
+                  <span role="img" aria-label="Bank">
+                    🏦
+                  </span>
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Bank Adı <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountForm.bankName}
+                      onChange={(e) =>
+                        setBankAccountForm({
+                          ...bankAccountForm,
+                          bankName: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                      placeholder="Məs: Kapital Bank"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Hesab Sahibinin Adı{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountForm.accountHolderName}
+                      onChange={(e) =>
+                        setBankAccountForm({
+                          ...bankAccountForm,
+                          accountHolderName: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                      placeholder="Məs: Kənan Rəhimli"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Hesab Nömrəsi <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountForm.accountNumber}
+                      onChange={(e) =>
+                        setBankAccountForm({
+                          ...bankAccountForm,
+                          accountNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                      placeholder="Məs: 1234567890123456"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      IBAN (İstəyə bağlı)
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountForm.iban}
+                      onChange={(e) =>
+                        setBankAccountForm({
+                          ...bankAccountForm,
+                          iban: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                      placeholder="Məs: AZ21NABZ00000000001234567890"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Telefon Nömrəsi (MPAY üçün)
+                    </label>
+                    <input
+                      type="tel"
+                      value={bankAccountForm.phoneNumber}
+                      onChange={(e) =>
+                        setBankAccountForm({
+                          ...bankAccountForm,
+                          phoneNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 shadow-sm"
+                      placeholder="Məs: +994501234567"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Bank transfer mümkün olmadıqda MPAY wallet-ə köçürmə üçün
+                      telefon nömrəsi lazımdır
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setShowBankAccountModal(false);
+                      setMessage(null);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all"
+                  >
+                    Ləğv et
+                  </button>
+                  <button
+                    onClick={handleSaveBankAccount}
+                    disabled={loadingBankAccount}
+                    className="flex-1 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingBankAccount ? "Yadda saxlanılır..." : "Yadda Saxla"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Withdrawal Modal */}
+          {showWithdrawalModal && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  Pul Çıxart{" "}
+                  <span role="img" aria-label="Çıxart">
+                    💸
+                  </span>
+                </h3>
+
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Mövcud balans:{" "}
+                    <span className="font-bold text-indigo-600">
+                      {teacherBalance.toFixed(2)} AZN
+                    </span>
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Çıxarılacaq Məbləğ (AZN)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    max={teacherBalance}
+                    step="0.01"
+                    value={withdrawalAmount}
+                    onChange={(e) => setWithdrawalAmount(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 shadow-sm"
+                    placeholder="Məs: 50.00"
+                  />
+                </div>
+
+                {bankAccount && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">
+                      Bank Hesabı:
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {bankAccount.bankName} - {bankAccount.accountNumber}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {bankAccount.accountHolderName}
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 mb-6">
+                  💡 Pul avtomatik şəkildə bank hesabınıza köçürüləcək. Əgər
+                  bank transfer mümkün deyilsə, MPAY wallet-ə köçürüləcək.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowWithdrawalModal(false);
+                      setWithdrawalAmount("");
+                      setMessage(null);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all"
+                  >
+                    Ləğv et
+                  </button>
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={
+                      withdrawing ||
+                      !withdrawalAmount ||
+                      parseFloat(withdrawalAmount) <= 0 ||
+                      parseFloat(withdrawalAmount) > teacherBalance
+                    }
+                    className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {withdrawing ? "Köçürülür..." : "Köçür"}
                   </button>
                 </div>
               </div>

@@ -44,13 +44,16 @@ export async function fetchServerAPI<T>(
   return response.json();
 }
 
-export async function getServerUser() {
+export async function getServerUser(options?: { revalidate?: number }) {
   try {
     const token = await getAuthToken();
     if (!token) {
       return null;
     }
-    return await fetchServerAPI<any>("/auth/me");
+    return await fetchServerAPI<any>("/auth/me", {
+      cache: options?.revalidate ? "no-store" : "force-cache",
+      next: options?.revalidate ? { revalidate: options.revalidate } : undefined,
+    });
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED") {
       return null;

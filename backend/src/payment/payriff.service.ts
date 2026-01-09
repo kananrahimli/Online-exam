@@ -10,109 +10,114 @@ export interface CreateOrderRequest {
   callbackUrl: string;
   cardSave?: boolean;
   operation?: 'PURCHASE' | 'PRE_AUTH';
-  metadata?: Record<string, any>;
-  merchant?: string; // PayRiff merchant/application ID
+  installment?: {
+    type?: string;
+    period?: number;
+  };
 }
 
 export interface CreateOrderResponse {
   code: string;
-  message: string;
-  route: string;
-  internalMessage: string | null;
-  responseId: string;
+  message?: string;
   payload: {
     orderId: string;
     paymentUrl: string;
-    transactionId: number;
+    transactionId?: number;
   };
 }
 
-export interface OrderInfoResponse {
+export interface OrderInformationResponse {
   code: string;
-  message: string;
-  route: string;
-  internalMessage: string | null;
-  responseId: string;
+  message?: string;
   payload: {
     orderId: string;
     amount: number;
-    currencyType: string;
-    merchantName: string;
-    operationType: string;
+    currency?: string;
+    currencyType?: string;
     paymentStatus: string;
-    auto: boolean;
-    createdDate: string;
-    description: string;
-    transactions: Array<{
-      uuid: string;
-      createdDate: string;
-      status: string;
-      channel: string;
-      channelType: string;
-      requestRrn: string;
-      responseRrn: string | null;
-      pan: string;
-      paymentWay: string;
-      cardDetails: {
-        maskedPan: string;
-        brand: string;
-        cardHolderName: string;
-      };
-      merchantCategory: string;
-      installment: {
-        type: string | null;
-        period: string | null;
-      };
+    description?: string;
+    createdDate?: string;
+    transactions?: Array<{
+      uuid?: string;
+      status?: string;
+      [key: string]: any;
     }>;
+    [key: string]: any;
   };
 }
 
 @Injectable()
 export class PayriffService {
   private readonly apiClient: AxiosInstance;
-  private readonly merchant: string;
+  private readonly merchantSecretKey: string;
   private readonly baseUrl: string;
+  private readonly SUCCESS_CODE = '00000';
+  private readonly PAID_STATUS = 'APPROVED';
 
   constructor(private configService: ConfigService) {
-    this.merchant = this.configService.get<string>('PAYRIFF_MERCHANT') || '';
-    this.baseUrl = this.configService.get<string>('PAYRIFF_BASE_URL');
+    this.merchantSecretKey =
+      this.configService.get<string>('PAYRIFF_SECRET_KEY') || '';
+    this.baseUrl =
+      this.configService.get<string>('PAYRIFF_BASE_URL') ||
+      'https://api.payriff.com/api/v3';
 
     this.apiClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `${this.configService.get<string>('PAYRIFF_SECRET_KEY') || ''}`,
+        Authorization: this.merchantSecretKey,
       },
     });
   }
 
+  /**
+   * Create order in PayRiff (v3 API)
+   * POST /orders
+   */
   async createOrder(request: CreateOrderRequest): Promise<CreateOrderResponse> {
     try {
-      // Check if merchant is configured
-      if (!this.merchant && !request.merchant) {
+      if (!this.merchantSecretKey) {
         throw new BadRequestException(
-          'PayRiff merchant ID təyin edilməyib. Zəhmət olmasa .env faylında PAYRIFF_MERCHANT dəyişənini təyin edin.',
+          'PayRiff secret key təyin edilməyib. Zəhmət olmasa .env faylında PAYRIFF_SECRET_KEY dəyişənini təyin edin.',
         );
       }
 
-      // Add merchant to request if not provided
-      const requestWithMerchant = {
-        body: { ...request },
-        merchant: request.merchant || this.merchant,
+      // Prepare body according to v3 API
+      const body: any = {
+        amount: request.amount,
+        callbackUrl: request.callbackUrl,
+        description: request.description,
+        currency: request.currency,
+        language: request.language,
+        cardSave: request.cardSave || false,
+        operation: request.operation || 'PURCHASE',
       };
 
-      const response = await this.apiClient.post<CreateOrderResponse>(
-        '/createOrder',
-        requestWithMerchant,
-      );
+      if (request.installment) {
+        body.installment = request.installment;
+      }
 
-      if (response.data.code !== '00000') {
+      const response = await this.apiClient.post<{
+        code: string;
+        message?: string;
+        payload: {
+          orderId: string;
+          paymentUrl: string;
+          transactionId?: number;
+        };
+      }>('orders', body);
+
+      if (response.data.code !== this.SUCCESS_CODE) {
         throw new BadRequestException(
           response.data.message || 'PayRiff ödəniş yaradıla bilmədi',
         );
       }
 
-      return response.data;
+      return {
+        code: response.data.code,
+        message: response.data.message,
+        payload: response.data.payload,
+      };
     } catch (error: any) {
       if (error.response) {
         const errorMessage =
@@ -148,27 +153,33 @@ export class PayriffService {
     }
   }
 
-  async getOrderInfo(orderId: string): Promise<OrderInfoResponse> {
-    const requestInvoice = {
-      merchant: this.merchant,
-      body: {
-        uuid: orderId,
-      },
-    };
-
+  /**
+   * Get order information from PayRiff (v3 API)
+   * GET /orders/{orderId}
+   */
+  async getOrderInfo(orderId: string): Promise<OrderInformationResponse> {
     try {
-      const response = await this.apiClient.post<any>(
-        `/get-invoice`,
-        requestInvoice,
-      );
+      if (!this.merchantSecretKey) {
+        throw new BadRequestException('PayRiff secret key təyin edilməyib');
+      }
 
-      if (response.data.code !== '00000') {
+      const response = await this.apiClient.get<{
+        code: string;
+        message?: string;
+        payload: any;
+      }>(`orders/${orderId}`);
+
+      if (response.data.code !== this.SUCCESS_CODE) {
         throw new BadRequestException(
           response.data.message || 'PayRiff sifariş məlumatı alına bilmədi',
         );
       }
 
-      return response.data;
+      return {
+        code: response.data.code,
+        message: response.data.message,
+        payload: response.data.payload,
+      };
     } catch (error: any) {
       if (error.response) {
         throw new BadRequestException(
@@ -179,20 +190,53 @@ export class PayriffService {
     }
   }
 
-  async refund(orderId: string, amount: number): Promise<any> {
+  /**
+   * Get order status from PayRiff
+   */
+  async getOrderStatus(orderId: string): Promise<string> {
     try {
-      const response = await this.apiClient.post('/refund', {
-        orderId,
-        amount,
-      });
+      const orderInfo = await this.getOrderInfo(orderId);
+      return orderInfo.payload.paymentStatus;
+    } catch (error: any) {
+      throw new BadRequestException(
+        `PayRiff order status alına bilmədi: ${error.message}`,
+      );
+    }
+  }
 
-      if (response.data.code !== '00000') {
-        throw new BadRequestException(
-          response.data.message || 'PayRiff geri qaytarma uğursuz oldu',
-        );
+  /**
+   * Check if order is paid
+   */
+  async isOrderPaid(orderId: string): Promise<boolean> {
+    try {
+      const status = await this.getOrderStatus(orderId);
+      return status === this.PAID_STATUS;
+    } catch (error: any) {
+      throw new BadRequestException(
+        `PayRiff order status yoxlanıla bilmədi: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Refund order (v3 API)
+   * POST /refund
+   */
+  async refund(orderId: string, amount: number): Promise<boolean> {
+    try {
+      if (!this.merchantSecretKey) {
+        throw new BadRequestException('PayRiff secret key təyin edilməyib');
       }
 
-      return response.data;
+      const response = await this.apiClient.post<{
+        code: string;
+        message?: string;
+      }>('refund', {
+        refundAmount: amount,
+        orderId: orderId,
+      });
+
+      return response.data.code === this.SUCCESS_CODE;
     } catch (error: any) {
       if (error.response) {
         throw new BadRequestException(

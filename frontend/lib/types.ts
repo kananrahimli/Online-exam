@@ -37,6 +37,7 @@ export interface User {
   lastName: string;
   role: UserRole;
   balance?: number;
+  teacherBalance?: number;
   createdAt: string;
   updatedAt: string;
 }

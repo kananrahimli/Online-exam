@@ -11,7 +11,8 @@ interface Teacher {
 
 export default async function ProfileServerWrapper() {
   try {
-    const user = await getServerUser();
+    // Disable cache to get fresh user data (especially after payment)
+    const user = await getServerUser({ revalidate: 0 });
 
     if (!user) {
       redirect("/login");

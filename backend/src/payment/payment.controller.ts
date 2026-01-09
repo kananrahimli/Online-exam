@@ -6,7 +6,9 @@ import {
   Param,
   Query,
   UseGuards,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { PaymentService } from './payment.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -16,11 +18,11 @@ import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Controller('payments')
-@UseGuards(JwtAuthGuard)
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(
     @CurrentUser() user: any,
     @Body() createPaymentDto: CreatePaymentDto,
@@ -29,6 +31,7 @@ export class PaymentController {
   }
 
   @Post('add-balance')
+  @UseGuards(JwtAuthGuard)
   async addBalance(
     @CurrentUser() user: any,
     @Body() addBalanceDto: AddBalanceDto,
@@ -37,12 +40,14 @@ export class PaymentController {
   }
 
   @Post('verify/:paymentId')
+  @UseGuards(JwtAuthGuard)
   async verify(@Param('paymentId') paymentId: string) {
     return this.paymentService.verifyPayment(paymentId);
   }
 
   @Get('success/:paymentId')
   async success(@Param('paymentId') paymentId: string) {
+    // Verify payment when user lands on success page
     return this.paymentService.verifyPayment(paymentId);
   }
 
@@ -52,29 +57,77 @@ export class PaymentController {
   }
 
   @Post('callback')
-  async callback(@Body() body: any, @Query('orderId') orderId?: string) {
-    // PayRiff can send orderId in query or body
-    const finalOrderId = orderId || body?.orderId;
-    if (!finalOrderId) {
-      return { message: 'Order ID təmin edilməyib' };
+  async callback(
+    @Body() body: any,
+    @Query('orderId') orderId?: string,
+    @Query('paymentId') paymentId?: string,
+  ) {
+    // PayRiff can send orderId or paymentId in query or body
+    const finalOrderId = orderId || body?.orderId || body?.uuid;
+    const finalPaymentId = paymentId || body?.paymentId;
+
+    if (!finalOrderId && !finalPaymentId) {
+      return { message: 'Order ID və ya Payment ID təmin edilməyib' };
     }
-    return this.paymentService.handleCallback(finalOrderId);
+
+    // Handle callback with orderId or paymentId
+    const result = await this.paymentService.handleCallback(
+      finalOrderId || '',
+      finalPaymentId,
+    );
+
+    // Return redirect URL for PayRiff to redirect user
+    return result;
   }
 
   @Get('callback')
-  async callbackGet(@Query('orderId') orderId?: string) {
-    if (!orderId) {
-      return { message: 'Order ID təmin edilməyib' };
+  async callbackGet(
+    @Query('orderId') orderId?: string,
+    @Query('paymentId') paymentId?: string,
+    @Res() res?: Response,
+  ) {
+    if (!orderId && !paymentId) {
+      if (res) {
+        return res.status(400).json({
+          message: 'Order ID və ya Payment ID təmin edilməyib',
+        });
+      }
+      return { message: 'Order ID və ya Payment ID təmin edilməyib' };
     }
-    return this.paymentService.handleCallback(orderId);
+
+    try {
+      // Handle callback and get redirect URL
+      const result = await this.paymentService.handleCallback(
+        orderId || '',
+        paymentId,
+      );
+
+      // If redirect URL is provided, redirect user to frontend
+      if (result.redirectUrl && res) {
+        return res.redirect(302, result.redirectUrl);
+      }
+
+      return result;
+    } catch (error: any) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      if (res) {
+        return res.redirect(
+          302,
+          `${frontendUrl}/profile?payment=error&message=${encodeURIComponent(error.message || 'Ödəniş zamanı xəta baş verdi')}`,
+        );
+      }
+      throw error;
+    }
   }
 
   @Get('teacher/balance')
+  @UseGuards(JwtAuthGuard)
   async getTeacherBalance(@CurrentUser() user: any) {
     return this.paymentService.getTeacherBalance(user.id);
   }
 
   @Post('teacher/withdrawals')
+  @UseGuards(JwtAuthGuard)
   async createWithdrawal(
     @CurrentUser() user: any,
     @Body() createWithdrawalDto: CreateWithdrawalDto,
@@ -88,11 +141,13 @@ export class PaymentController {
   }
 
   @Get('teacher/withdrawals')
+  @UseGuards(JwtAuthGuard)
   async getWithdrawals(@CurrentUser() user: any) {
     return this.paymentService.getWithdrawals(user.id);
   }
 
   @Post('admin/withdrawals/:withdrawalId/process')
+  @UseGuards(JwtAuthGuard)
   async processWithdrawal(
     @Param('withdrawalId') withdrawalId: string,
     @CurrentUser() user: any,
@@ -106,6 +161,7 @@ export class PaymentController {
   }
 
   @Post('teacher/bank-account')
+  @UseGuards(JwtAuthGuard)
   async updateBankAccount(
     @CurrentUser() user: any,
     @Body() updateBankAccountDto: UpdateBankAccountDto,
@@ -114,6 +170,7 @@ export class PaymentController {
   }
 
   @Get('teacher/bank-account')
+  @UseGuards(JwtAuthGuard)
   async getBankAccount(@CurrentUser() user: any) {
     return this.paymentService.getBankAccount(user.id);
   }

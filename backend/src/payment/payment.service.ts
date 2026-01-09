@@ -68,7 +68,8 @@ export class PaymentService {
     // Create PayRiff order
     const baseUrl =
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
-    const callbackUrl = `${baseUrl}/payments/callback`;
+    // Callback URL: Backend endpoint (PayRiff bura çağıracaq)
+    const callbackUrl = `${baseUrl}/payments/callback?paymentId=${payment.id}`;
 
     const payriffResponse = await this.payriffService.createOrder({
       amount: amount,
@@ -78,12 +79,6 @@ export class PaymentService {
       callbackUrl: callbackUrl,
       cardSave: false,
       operation: 'PURCHASE',
-      metadata: {
-        paymentId: payment.id,
-        studentId: studentId,
-        examId: examId,
-        type: 'exam_payment',
-      },
     });
 
     // Update payment with PayRiff order ID
@@ -91,7 +86,8 @@ export class PaymentService {
       where: { id: payment.id },
       data: {
         payriffOrderId: payriffResponse.payload.orderId,
-        payriffTransactionId: payriffResponse.payload.transactionId.toString(),
+        payriffTransactionId:
+          payriffResponse.payload.transactionId?.toString() || null,
       },
     });
 
@@ -104,6 +100,12 @@ export class PaymentService {
     };
   }
 
+  /**
+   * Verify payment status from PayRiff
+   * This method is called either:
+   * 1. By PayRiff callback with paymentId
+   * 2. Manually via GET/POST /verify/{paymentId}
+   */
   async verifyPayment(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -140,12 +142,11 @@ export class PaymentService {
         payment.payriffOrderId,
       );
 
-      // Check if payment is successful
-      // PayRiff v2 API may return different status values
+      // Check if payment is successful using PayRiff v3 API
       const paymentStatus = orderInfo.payload.paymentStatus?.toUpperCase();
       const isPaid =
+        paymentStatus === 'APPROVED' || // PayRiff v3 uses APPROVED for paid status
         paymentStatus === 'PAID' ||
-        paymentStatus === 'APPROVED' ||
         paymentStatus === 'COMPLETED';
 
       if (!isPaid) {
@@ -285,13 +286,17 @@ export class PaymentService {
     });
   }
 
-  async handleCallback(orderId: string) {
-    // Get order info from PayRiff
-    const orderInfo = await this.payriffService.getOrderInfo(orderId);
+  /**
+   * Handle PayRiff callback
+   * This method verifies payment and returns redirect URL for frontend
+   */
+  async handleCallback(orderId: string, paymentId?: string) {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
 
-    // Find payment by order ID
-    const payment = await this.prisma.payment.findUnique({
-      where: { payriffOrderId: orderId },
+    // Find payment by order ID or payment ID
+    const payment = await this.prisma.payment.findFirst({
+      where: paymentId ? { id: paymentId } : { payriffOrderId: orderId },
       include: {
         exam: {
           include: {
@@ -306,21 +311,36 @@ export class PaymentService {
       throw new NotFoundException('Ödəniş tapılmadı');
     }
 
-    // If already processed, return
-    if (payment.status === PaymentStatus.COMPLETED) {
-      return {
-        message: 'Ödəniş artıq emal olunub',
-        payment: payment,
-      };
+    // Get orderId from payment if not provided
+    const finalOrderId = orderId || payment.payriffOrderId;
+    if (!finalOrderId) {
+      throw new BadRequestException('PayRiff order ID tapılmadı');
     }
 
-    // Check payment status
-    // PayRiff v2 API may return different status values
+    // Get order info from PayRiff
+    const orderInfo = await this.payriffService.getOrderInfo(finalOrderId);
+
+    // Check payment status using PayRiff v3 API
     const paymentStatus = orderInfo.payload.paymentStatus?.toUpperCase();
     const isPaid =
+      paymentStatus === 'APPROVED' || // PayRiff v3 uses APPROVED for paid status
       paymentStatus === 'PAID' ||
-      paymentStatus === 'APPROVED' ||
       paymentStatus === 'COMPLETED';
+
+    // If already processed, redirect to success
+    if (payment.status === PaymentStatus.COMPLETED) {
+      if (!payment.examId) {
+        // Balance payment success
+        return {
+          redirectUrl: `${frontendUrl}/profile?payment=success&paymentId=${payment.id}`,
+        };
+      } else {
+        // Exam payment success
+        return {
+          redirectUrl: `${frontendUrl}/payments/success/${payment.id}`,
+        };
+      }
+    }
 
     if (isPaid) {
       const amount = payment.amount || 0;
@@ -332,7 +352,7 @@ export class PaymentService {
           data: {
             status: PaymentStatus.COMPLETED,
             payriffTransactionId:
-              orderInfo.payload.transactions[0]?.uuid || null,
+              orderInfo.payload.transactions?.[0]?.uuid || null,
           },
         });
 
@@ -345,7 +365,9 @@ export class PaymentService {
           },
         });
 
+        // Redirect to success page
         return {
+          redirectUrl: `${frontendUrl}/profile?payment=success&paymentId=${payment.id}`,
           message: 'Ödəniş uğurlu. Balansınız artırıldı.',
         };
       }
@@ -372,7 +394,7 @@ export class PaymentService {
           data: {
             status: PaymentStatus.COMPLETED,
             payriffTransactionId:
-              orderInfo.payload.transactions[0]?.uuid || null,
+              orderInfo.payload.transactions?.[0]?.uuid || null,
             attemptId: attempt.id,
           },
         });
@@ -380,7 +402,9 @@ export class PaymentService {
         // Split payment
         await this.splitPayment(payment.id, amount, payment.exam.teacherId);
 
+        // Redirect to success page
         return {
+          redirectUrl: `${frontendUrl}/payments/success/${payment.id}`,
           message: 'Ödəniş uğurlu',
           attemptId: attempt.id,
         };
@@ -394,7 +418,9 @@ export class PaymentService {
         },
       });
 
+      // Redirect to cancel/fail page
       return {
+        redirectUrl: `${frontendUrl}/payments/cancel/${payment.id}`,
         message: 'Ödəniş uğursuz oldu',
       };
     }
@@ -450,7 +476,8 @@ export class PaymentService {
     // Create PayRiff order
     const baseUrl =
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
-    const callbackUrl = `${baseUrl}/payments/callback`;
+    // Callback URL: Backend endpoint (PayRiff bura çağıracaq)
+    const callbackUrl = `${baseUrl}/payments/callback?paymentId=${payment.id}`;
 
     const payriffResponse = await this.payriffService.createOrder({
       amount: amount,
@@ -460,11 +487,6 @@ export class PaymentService {
       callbackUrl: callbackUrl,
       cardSave: false,
       operation: 'PURCHASE',
-      metadata: {
-        paymentId: payment.id,
-        studentId: studentId,
-        type: 'balance_topup',
-      },
     });
 
     // Update payment with PayRiff order ID
@@ -472,7 +494,8 @@ export class PaymentService {
       where: { id: payment.id },
       data: {
         payriffOrderId: payriffResponse.payload.orderId,
-        payriffTransactionId: payriffResponse.payload.transactionId.toString(),
+        payriffTransactionId:
+          payriffResponse.payload.transactionId?.toString() || null,
       },
     });
 

@@ -320,14 +320,14 @@ export class ExamService {
   }
 
   async findPublished(studentId?: string) {
-    // Only show exams published less than 3 days ago
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // Only show exams published less than 1 hour ago
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const where: any = {
       status: ExamStatus.PUBLISHED,
       publishedAt: {
-        gte: threeDaysAgo, // Only show exams published in the last 3 days
+        gte: oneHourAgo, // Only show exams published in the last 1 hour
       },
     };
 
@@ -444,7 +444,7 @@ export class ExamService {
       throw new NotFoundException('İmtahan tapılmadı');
     }
 
-    // Check and award prizes if exam is no longer active (3 days passed)
+    // Check and award prizes if exam is no longer active (1 hour passed)
     // This ensures prizes are awarded even if exam is removed from published list
     if (exam.publishedAt) {
       await this.examAttemptService.checkAndAwardPrizes(exam.id);

@@ -23,9 +23,9 @@ export const ALERT_STYLES = {
     button: 'bg-red-600 hover:bg-red-700',
   },
   warning: {
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-200',
-    text: 'text-yellow-800',
+    bg: 'bg-yellow-100',
+    border: 'border-yellow-400',
+    text: 'text-yellow-900',
     icon: '⚠',
     button: 'bg-yellow-600 hover:bg-yellow-700',
   },

@@ -129,15 +129,11 @@ export default function TakeExamPage() {
     }
 
     fetchAttempt();
-    setupTabChangeDetection();
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      // Cleanup tab change detection
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, attemptId]);
@@ -237,42 +233,11 @@ export default function TakeExamPage() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    showAlert({
-      message:
-        "İmtahan müddəti bitdi! Cavablar avtomatik olaraq yadda saxlanılacaq.",
-      type: "warning",
-      confirmButtonText: "Tamam",
-    });
-    setTimeout(async () => {
-      await handleSubmit(true); // Skip confirm for time expiration
-    }, 1500);
-  };
 
-  const handleVisibilityChange = () => {
-    if (document.hidden) {
-      setTabChangeCount((prev) => {
-        const newCount = prev + 1;
-        // Tab dəyişib - xəbərdarlıq göstər
-        if (newCount >= 3) {
-          showAlert({
-            message:
-              "XƏBƏRDARLIQ: Tab dəyişdirmək qadağandır! 3 dəfədən çox tab dəyişdirsəniz, imtahan avtomatik olaraq bitiriləcək.",
-            type: "warning",
-            confirmButtonText: "Başa düşdüm",
-          });
-        }
-        return newCount;
-      });
-    }
-  };
-
-  const handleBlur = () => {
-    setTabChangeCount((prev) => prev + 1);
-  };
-
-  const setupTabChangeDetection = () => {
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
+    await handleSubmit(
+      false,
+      "İmtahan müddəti bitdi! Cavablar avtomatik olaraq yadda saxlanılacaq."
+    );
   };
 
   const handleAnswerChange = async (questionId: string, value: string) => {
@@ -345,10 +310,14 @@ export default function TakeExamPage() {
     return { grouped, ungrouped };
   };
 
-  const handleSubmit = async (skipConfirm: boolean = false) => {
+  const handleSubmit = async (
+    skipConfirm: boolean = false,
+    message?: string
+  ) => {
     if (!skipConfirm) {
       const confirmed = await showConfirm({
         message:
+          message ||
           "İmtahanı bitirmək istədiyinizə əminsiniz? Dəyişiklik edə bilməyəcəksiniz.",
         type: "warning",
         confirmButtonText: "Bəli, bitir",

@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import api from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { QuestionType } from "@/lib/types";
 import QuestionTypeMultiSelect from "@/components/QuestionTypeMultiSelect";
@@ -16,12 +15,24 @@ const aiGenerateSchema = z
     subject: z.string().min(2, "Fənn adı lazımdır"),
     level: z.string().min(1, "Sinif lazımdır"),
     topic: z.string().min(2, "Mövzu lazımdır"),
-    questionCount: z.number().min(1).max(100),
+    questionCount: z
+      .number({
+        required_error: "Sual sayı lazımdır",
+        invalid_type_error: "Sual sayı rəqəm olmalıdır",
+      })
+      .min(1, "Sual sayı minimum 1 olmalıdır")
+      .max(100, "Sual sayı maksimum 100 ola bilər"),
     questionTypes: z
       .array(z.nativeEnum(QuestionType))
       .min(1, "Ən azı bir sual tipi seçilməlidir"),
     readingText: z.string().optional(),
-    readingQuestionCount: z.number().optional(),
+    readingQuestionCount: z
+      .number({
+        invalid_type_error: "Sual sayı rəqəm olmalı və daxil edilməlidir!",
+      })
+      .min(1, "Sual sayı minimum 1 olmalıdır")
+      .max(50, "Sual sayı maksimum 50 ola bilər")
+      .optional(),
     title: z.string().min(3, "Başlıq lazımdır"),
     duration: z
       .enum(["60", "120", "180"], {
@@ -29,22 +40,23 @@ const aiGenerateSchema = z
       })
       .transform((val) => parseInt(val)),
   })
+
   .refine(
     (data) => {
-      // Əgər READING_COMPREHENSION seçilibsə, readingText və readingQuestionCount lazımdır
+      // readingQuestionCount üçün ayrıca yoxlama
       if (data.questionTypes?.includes(QuestionType.READING_COMPREHENSION)) {
         return (
-          data.readingText &&
-          data.readingText.length > 0 &&
-          data.readingQuestionCount &&
+          data.readingQuestionCount !== undefined &&
+          data.readingQuestionCount !== null &&
+          !isNaN(data.readingQuestionCount) &&
           data.readingQuestionCount > 0
         );
       }
       return true;
     },
     {
-      message: "Mətn əsaslı suallar üçün mətn və sual sayı lazımdır",
-      path: ["readingText"],
+      message: "Mətndən yaradılacaq sual sayı göstərilməlidir",
+      path: ["readingQuestionCount"],
     }
   );
 
@@ -52,7 +64,7 @@ type AIGenerateFormData = z.infer<typeof aiGenerateSchema>;
 
 export default function AIGenerateExamPage() {
   const router = useRouter();
-  const { token, initialize } = useAuthStore();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [generatedExam, setGeneratedExam] = useState<any>(null);
@@ -74,12 +86,10 @@ export default function AIGenerateExamPage() {
     defaultValues: {
       questionCount: 10,
       questionTypes: [QuestionType.MULTIPLE_CHOICE],
-      duration: 60,
     },
   });
 
   const selectedQuestionTypes = watch("questionTypes") || [];
-  const readingText = watch("readingText");
 
   const onSubmit = async (data: AIGenerateFormData) => {
     setError("");
@@ -462,7 +472,14 @@ export default function AIGenerateExamPage() {
                   Sual Sayı *
                 </label>
                 <input
-                  {...register("questionCount", { valueAsNumber: true })}
+                  {...register("questionCount", {
+                    valueAsNumber: true,
+                    setValueAs: (v) => {
+                      if (v === "" || v === null || v === undefined) return 10;
+                      const num = Number(v);
+                      return isNaN(num) ? 10 : num;
+                    },
+                  })}
                   type="number"
                   min={1}
                   max={100}
@@ -573,6 +590,12 @@ export default function AIGenerateExamPage() {
                   <input
                     {...register("readingQuestionCount", {
                       valueAsNumber: true,
+                      setValueAs: (v) => {
+                        if (v === "" || v === null || v === undefined)
+                          return undefined;
+                        const num = Number(v);
+                        return isNaN(num) ? undefined : num;
+                      },
                     })}
                     type="number"
                     min={1}

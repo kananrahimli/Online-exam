@@ -636,8 +636,8 @@ export class ExamAttemptService {
       },
     });
 
-    // Award prizes to top 3 students (after exam is removed from published list - 3 days after publish)
-    // We'll check when to award prizes - if exam was published 3+ days ago, award immediately
+    // Award prizes to top 3 students (after exam is removed from published list - 1 hour after publish)
+    // We'll check when to award prizes - if exam was published 1+ hour ago, award immediately
     // Otherwise, schedule for when exam is removed from published list
     await this.checkAndAwardPrizes(attempt.examId);
 
@@ -664,15 +664,15 @@ export class ExamAttemptService {
       return;
     }
 
-    // Check if 3 days have passed since publish date (exam is removed from published list)
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // Check if 1 hour has passed since publish date (exam is removed from published list)
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const publishDate = new Date(exam.publishedAt);
-    const shouldAwardPrizes = publishDate <= threeDaysAgo;
+    const shouldAwardPrizes = publishDate <= oneHourAgo;
 
     console.log(
-      `[PRIZE] Exam ${examId} - Published: ${publishDate}, ThreeDaysAgo: ${threeDaysAgo}, ShouldAward: ${shouldAwardPrizes}`,
+      `[PRIZE] Exam ${examId} - Published: ${publishDate}, OneHourAgo: ${oneHourAgo}, ShouldAward: ${shouldAwardPrizes}`,
     );
 
     if (shouldAwardPrizes) {
@@ -684,8 +684,8 @@ export class ExamAttemptService {
         `[PRIZE] Exam ${examId} is still active, prizes will be awarded later`,
       );
     }
-    // If exam is still in published list (< 3 days), prizes will be awarded later
-    // This will be handled when the next submission happens after 3 days pass
+    // If exam is still in published list (< 1 hour), prizes will be awarded later
+    // This will be handled when the next submission happens after 1 hour passes
   }
 
   private async awardPrizes(examId: string) {
@@ -933,7 +933,7 @@ export class ExamAttemptService {
       throw new BadRequestException('İmtahan hələ təqdim olunmayıb');
     }
 
-    // Check and award prizes if exam is no longer active (3 days passed)
+    // Check and award prizes if exam is no longer active (1 hour passed)
     await this.checkAndAwardPrizes(attempt.examId);
 
     // Combine all questions (from topics and regular questions) and map readingText
@@ -1104,8 +1104,8 @@ export class ExamAttemptService {
     // After manual grading, check if all results are ready and award prizes
     // This ensures prizes are awarded after teacher finishes grading all open-ended questions
     const examId = attempt.examId;
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const examDetails = await this.prisma.exam.findUnique({
       where: { id: examId },
@@ -1114,10 +1114,10 @@ export class ExamAttemptService {
       },
     });
 
-    // Only award prizes if exam has been published for 3+ days
+    // Only award prizes if exam has been published for 1+ hour
     if (examDetails?.publishedAt) {
       const publishDate = new Date(examDetails.publishedAt);
-      if (publishDate <= threeDaysAgo) {
+      if (publishDate <= oneHourAgo) {
         console.log(
           `[PRIZE] Manual grading completed for exam ${examId}. Checking if prizes should be awarded.`,
         );

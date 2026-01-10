@@ -72,6 +72,7 @@ export default function AIGenerateExamPage() {
   const [editingQuestionIndex, setEditingQuestionIndex] = useState<
     number | null
   >(null);
+  const [editingReadingText, setEditingReadingText] = useState(false);
 
   const {
     register,
@@ -179,26 +180,59 @@ export default function AIGenerateExamPage() {
     });
   };
 
+  const updateReadingText = (newText: string) => {
+    if (!generatedExam) return;
+
+    setGeneratedExam({
+      ...generatedExam,
+      readingText: newText,
+    });
+  };
+
   const saveExam = async () => {
     if (!generatedExam) return;
 
     setLoading(true);
     try {
+      // Prepare reading texts if AI generated any
+      const readingTexts = generatedExam.readingText
+        ? [{ content: generatedExam.readingText }]
+        : [];
+
+      // Map questions and link READING_COMPREHENSION questions to reading text
+      const questions = generatedExam.questions?.map(
+        (q: any, index: number) => {
+          const questionData: any = {
+            type: q.type,
+            content: q.content,
+            points: q.points || 1,
+            options: q.options?.map((opt: any) => ({
+              content: opt.content,
+            })),
+            correctAnswer: q.correctAnswer,
+            modelAnswer: q.modelAnswer,
+          };
+
+          // Link READING_COMPREHENSION questions to reading text using temp ID
+          if (
+            q.type === QuestionType.READING_COMPREHENSION &&
+            readingTexts.length > 0
+          ) {
+            questionData.readingTextId = "temp_0"; // Backend will map this to real ID
+          }
+
+          return questionData;
+        }
+      );
+
       const examData = {
         title: generatedExam.title,
         description: generatedExam.description,
         subject: generatedExam.subject || watch("subject"),
         level: generatedExam.level || watch("level"),
         duration: generatedExam.duration,
-        questions: generatedExam.questions?.map((q: any) => ({
-          type: q.type,
-          content: q.content,
-          points: q.points || 1,
-          options: q.options?.map((opt: any) => ({
-            content: opt.content,
-          })),
-          correctAnswer: q.correctAnswer,
-        })),
+        readingTexts: readingTexts,
+        questions: questions || [],
       };
 
       const response = await api.post("/exams", examData);
@@ -231,6 +265,83 @@ export default function AIGenerateExamPage() {
               <h2 className="text-2xl font-bold mb-2">{generatedExam.title}</h2>
               <p className="text-gray-600">{generatedExam.description}</p>
             </div>
+
+            {/* Reading Text Section - if AI generated reading text */}
+            {generatedExam.readingText && (
+              <div className="border border-gray-200 rounded-lg p-6 bg-blue-50">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Oxuma Mətni
+                  </h3>
+                  <button
+                    onClick={() => {
+                      if (editingReadingText) {
+                        setEditingReadingText(false);
+                      } else {
+                        setEditingReadingText(true);
+                      }
+                    }}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-all"
+                  >
+                    {editingReadingText ? "✓ Yadda saxla" : "✏️ Redaktə et"}
+                  </button>
+                </div>
+
+                {/* Reading Text Content */}
+                {editingReadingText ? (
+                  <textarea
+                    value={generatedExam.readingText}
+                    onChange={(e) => updateReadingText(e.target.value)}
+                    rows={8}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900 mb-4 resize-y"
+                    placeholder="Mətni buraya yazın..."
+                  />
+                ) : (
+                  <p className="text-gray-800 leading-7 text-base whitespace-pre-wrap mb-4">
+                    {generatedExam.readingText}
+                  </p>
+                )}
+
+                {/* Reading Comprehension Questions Info */}
+                {generatedExam.questions?.some(
+                  (q: any) => q.type === QuestionType.READING_COMPREHENSION
+                ) && (
+                  <div className="mt-4 pt-4 border-t border-gray-300">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg
+                        className="w-5 h-5 text-blue-600"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                      </svg>
+                      <span className="text-blue-700 font-semibold text-base">
+                        İpucu:
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-blue-900 mb-1">
+                      Bu mətn əsasında həll edilməli olan suallar:
+                    </p>
+                    <p className="text-sm text-blue-800">
+                      {generatedExam.questions
+                        ?.filter(
+                          (q: any) =>
+                            q.type === QuestionType.READING_COMPREHENSION
+                        )
+                        .map((q: any) => {
+                          const questionIndex =
+                            generatedExam.questions.findIndex(
+                              (q2: any) => q2 === q
+                            );
+                          return `Sual ${questionIndex + 1}`;
+                        })
+                        .join(", ")}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-4">
               {generatedExam.questions?.map((question: any, index: number) => {
@@ -275,8 +386,8 @@ export default function AIGenerateExamPage() {
                       </p>
                     )}
 
-                    {/* Variantlar */}
-                    {question.options && (
+                    {/* Variantlar - Multiple Choice */}
+                    {question.options && question.options.length > 0 && (
                       <div className="space-y-3">
                         {question.options.map((opt: any, optIndex: number) => {
                           const isCorrect =
@@ -346,6 +457,37 @@ export default function AIGenerateExamPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* Model Answer - Open Ended Questions */}
+                    {question.type === QuestionType.OPEN_ENDED && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Nümunə Cavab
+                        </label>
+                        {isEditing ? (
+                          <textarea
+                            value={question.modelAnswer || ""}
+                            onChange={(e) =>
+                              updateQuestion(
+                                index,
+                                "modelAnswer",
+                                e.target.value
+                              )
+                            }
+                            rows={6}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900 resize-y"
+                            placeholder="Nümunə cavabı buraya yazın..."
+                          />
+                        ) : (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                              {question.modelAnswer ||
+                                "Nümunə cavab əlavə edilməyib"}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

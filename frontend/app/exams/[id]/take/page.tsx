@@ -59,38 +59,46 @@ function QuestionComponent({
           )}
         </div>
 
-        {question.type === QuestionType.MULTIPLE_CHOICE && question.options && (
-          <div className="space-y-3 mt-4">
-            {question.options
-              .sort((a, b) => a.order - b.order)
-              .map((option, optIndex) => (
-                <label
-                  key={option.id}
-                  className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                    answers[question.id] === option.id
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={`question-${question.id}`}
-                    value={option.id}
-                    checked={answers[question.id] === option.id}
-                    onChange={(e) =>
-                      handleAnswerChange(question.id, e.target.value)
-                    }
-                    className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="ml-4 text-gray-900 flex-1">
-                    {String.fromCharCode(65 + optIndex)}. {option.content}
-                  </span>
-                </label>
-              ))}
-          </div>
-        )}
+        {/* Multiple Choice Options - for MULTIPLE_CHOICE or READING_COMPREHENSION with options */}
+        {(question.type === QuestionType.MULTIPLE_CHOICE ||
+          (question.type === QuestionType.READING_COMPREHENSION &&
+            question.options &&
+            question.options.length > 0)) &&
+          question.options && (
+            <div className="space-y-3 mt-4">
+              {question.options
+                .sort((a, b) => a.order - b.order)
+                .map((option, optIndex) => (
+                  <label
+                    key={option.id}
+                    className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      answers[question.id] === option.id
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${question.id}`}
+                      value={option.id}
+                      checked={answers[question.id] === option.id}
+                      onChange={(e) =>
+                        handleAnswerChange(question.id, e.target.value)
+                      }
+                      className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="ml-4 text-gray-900 flex-1 font-medium">
+                      {String.fromCharCode(65 + optIndex)}. {option.content}
+                    </span>
+                  </label>
+                ))}
+            </div>
+          )}
 
-        {question.type === QuestionType.OPEN_ENDED && (
+        {/* Open Ended - for OPEN_ENDED or READING_COMPREHENSION without options */}
+        {(question.type === QuestionType.OPEN_ENDED ||
+          (question.type === QuestionType.READING_COMPREHENSION &&
+            (!question.options || question.options.length === 0))) && (
           <div className="mt-4">
             <textarea
               value={answers[question.id] || ""}

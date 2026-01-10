@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ProfilePage() {
-  return <ProfileServerWrapper />;
+interface ProfilePageProps {
+  searchParams?: {
+    payment?: string;
+    paymentId?: string;
+    message?: string;
+  };
+}
+
+export default function ProfilePage({ searchParams }: ProfilePageProps) {
+  return <ProfileServerWrapper searchParams={searchParams} />;
 }

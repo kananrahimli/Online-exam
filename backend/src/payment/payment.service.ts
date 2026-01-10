@@ -164,6 +164,18 @@ export class PaymentService {
       // Payment is successful, process it
       const amount = payment.amount || 0;
 
+      // Complete order in PayRiff (rəsmi tamamlama)
+      try {
+        await this.payriffService.completeOrder(payment.payriffOrderId, amount);
+      } catch (error: any) {
+        // Complete endpoint-i opsional ola bilər - xəta varsa log edək amma davam edək
+        console.warn(
+          `PayRiff complete endpoint xətası (orderId: ${payment.payriffOrderId}):`,
+          error.message,
+        );
+        // Davam edirik çünki ödəniş artıq APPROVED-dir
+      }
+
       // If this is a balance payment (no examId), process it directly
       if (!payment.examId) {
         // Update payment status to completed
@@ -220,6 +232,21 @@ export class PaymentService {
         if (payment.exam.duration === 60) finalAmount = 3;
         else if (payment.exam.duration === 120) finalAmount = 5;
         else if (payment.exam.duration === 180) finalAmount = 10;
+      }
+
+      // Complete order in PayRiff for exam payment (rəsmi tamamlama)
+      try {
+        await this.payriffService.completeOrder(
+          payment.payriffOrderId,
+          finalAmount,
+        );
+      } catch (error: any) {
+        // Complete endpoint-i opsional ola bilər - xəta varsa log edək amma davam edək
+        console.warn(
+          `PayRiff complete endpoint xətası (orderId: ${payment.payriffOrderId}):`,
+          error.message,
+        );
+        // Davam edirik çünki ödəniş artıq APPROVED-dir
       }
 
       // Update payment
@@ -344,6 +371,18 @@ export class PaymentService {
 
     if (isPaid) {
       const amount = payment.amount || 0;
+
+      // Complete order in PayRiff (rəsmi tamamlama)
+      try {
+        await this.payriffService.completeOrder(finalOrderId, amount);
+      } catch (error: any) {
+        // Complete endpoint-i opsional ola bilər - xəta varsa log edək amma davam edək
+        console.warn(
+          `PayRiff complete endpoint xətası (orderId: ${finalOrderId}):`,
+          error.message,
+        );
+        // Davam edirik çünki ödəniş artıq APPROVED-dir
+      }
 
       // If this is a balance payment
       if (!payment.examId) {

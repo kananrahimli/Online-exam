@@ -1,5 +1,6 @@
 import { getServerUser, fetchServerAPI } from "@/lib/server-api";
 import { redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 import ProfileClient from "./profile-client";
 
 interface Teacher {
@@ -9,10 +10,40 @@ interface Teacher {
   email: string;
 }
 
-export default async function ProfileServerWrapper() {
+interface ProfileServerWrapperProps {
+  searchParams?: {
+    payment?: string;
+    paymentId?: string;
+    message?: string;
+  };
+}
+
+export default async function ProfileServerWrapper({
+  searchParams,
+}: ProfileServerWrapperProps = {}) {
   try {
-    // Disable cache to get fresh user data (especially after payment)
-    const user = await getServerUser({ revalidate: 0 });
+    // If payment success callback, revalidate balance tag first
+    if (searchParams?.payment === "success" && searchParams?.paymentId) {
+      try {
+        // Verify payment server-side to ensure it's processed
+        await fetchServerAPI<any>(
+          `/payments/verify/${searchParams.paymentId}`,
+          {
+            method: "POST",
+            cache: "no-store",
+          }
+        );
+        // Revalidate balance tag to refresh profile data
+        revalidateTag("balance");
+      } catch (err) {
+        // If verification fails, still revalidate to get fresh data
+        revalidateTag("balance");
+      }
+    }
+
+    // Fetch user with balance tag for cache revalidation
+    // After revalidation, this will get fresh balance data
+    const user = await getServerUser({ tags: ["balance"] });
 
     if (!user) {
       redirect("/login");

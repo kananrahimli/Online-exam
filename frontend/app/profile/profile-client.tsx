@@ -9,6 +9,8 @@ import TeacherMultiSelect from "@/components/TeacherMultiSelect";
 import { UserRole } from "@/lib/types";
 import { useAlert } from "@/hooks/useAlert";
 import { saveTeachers } from "@/lib/actions/teachers";
+import { addBalanceAction, verifyPaymentAction } from "@/lib/actions/payments";
+import Navigation from "@/components/Navigation";
 
 interface Teacher {
   id: string;
@@ -149,15 +151,11 @@ export default function ProfileClient({
     const paymentId = searchParams?.get("paymentId");
 
     if (paymentStatus === "success" && paymentId) {
-      api
-        .post(`/payments/verify/${paymentId}`)
+      // Use server action to verify payment and revalidate balance tag
+      // This will trigger server-side re-render of the profile page
+      verifyPaymentAction(paymentId)
         .then(async (verifyResponse) => {
-          const paymentAmount = verifyResponse.data.payment?.amount || 0;
-          const updatedUserResponse = await api.get("/auth/me");
-          const updatedUser = updatedUserResponse.data;
-
-          setUser(updatedUser);
-          setClientBalance(updatedUser.balance); // ✅ Sync balance
+          const paymentAmount = verifyResponse.payment?.amount || 0;
 
           setMessage({
             type: "success",
@@ -166,14 +164,26 @@ export default function ProfileClient({
             )} AZN əlavə edildi.`,
           });
 
-          setTimeout(() => {
-            router.replace("/profile");
-          }, 3000);
+          // Refresh profile page to get updated balance from server
+          // This will trigger server-side re-render with fresh data
+          router.refresh();
+
+          // After refresh, fetch fresh user data
+          setTimeout(async () => {
+            try {
+              const updatedUserResponse = await api.get("/auth/me");
+              const updatedUser = updatedUserResponse.data;
+              setUser(updatedUser);
+              setClientBalance(updatedUser.balance);
+            } catch (err) {
+              console.error("Failed to fetch updated user:", err);
+            }
+          }, 500);
         })
         .catch((err: any) => {
           setMessage({
             type: "error",
-            text: err.response?.data?.message || "Ödəniş yoxlanıla bilmədi",
+            text: err.message || "Ödəniş yoxlanıla bilmədi",
           });
         });
     } else if (paymentStatus === "error") {
@@ -230,15 +240,19 @@ export default function ProfileClient({
     setMessage(null);
 
     try {
-      const response = await api.post("/payments/add-balance", {
-        amount: parseFloat(balanceAmount),
-      });
+      // Use server action to create payment and revalidate balance tag
+      const result = await addBalanceAction(parseFloat(balanceAmount));
 
-      window.location.href = response.data.paymentUrl;
+      if (!result.success || !result.paymentUrl) {
+        throw new Error("Payment URL alına bilmədi");
+      }
+
+      // Redirect to PayRiff payment page
+      window.location.href = result.paymentUrl;
     } catch (err: any) {
       setMessage({
         type: "error",
-        text: err.response?.data?.message || "Ödəniş xətası",
+        text: err.message || "Ödəniş xətası",
       });
       setAddingBalance(false);
     }
@@ -392,57 +406,11 @@ export default function ProfileClient({
     <>
       <AlertComponent />
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        {/* Navigation */}
-        <nav className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-20">
-              <div className="flex items-center space-x-3">
-                <Link href="/dashboard" className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
-                    <span
-                      className="text-white font-bold text-lg"
-                      role="img"
-                      aria-label="İmtahan kağızı"
-                    >
-                      📝
-                    </span>
-                  </div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    Online İmtahan
-                  </h1>
-                </Link>
-              </div>
-              <div className="flex items-center space-x-6">
-                {currentUser && (
-                  <div className="text-right">
-                    <p className="text-gray-900 font-semibold">
-                      {currentUser.firstName} {currentUser.lastName}
-                    </p>
-                    <p className="text-sm text-gray-500 capitalize">
-                      {currentUser.role === UserRole.STUDENT
-                        ? "Şagird"
-                        : "Müəllim"}
-                    </p>
-                  </div>
-                )}
-                <Link
-                  href="/dashboard"
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  İdarə paneli
-                </Link>
-                <button
-                  onClick={() => {
-                    useAuthStore.getState().logout();
-                  }}
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  Çıxış
-                </button>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <Navigation
+          user={currentUser || initialUser}
+          showProfileLink={false}
+          showDashboardLink={true}
+        />
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

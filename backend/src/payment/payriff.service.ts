@@ -219,6 +219,67 @@ export class PayriffService {
   }
 
   /**
+   * Complete order (v3 API)
+   * POST /complete
+   * Rəsmi olaraq ödənişi tamamlayır
+   */
+  async completeOrder(orderId: string, amount: number): Promise<boolean> {
+    try {
+      if (!this.merchantSecretKey) {
+        throw new BadRequestException('PayRiff secret key təyin edilməyib');
+      }
+
+      const response = await this.apiClient.post<{
+        code: string;
+        message?: string;
+        payload?: {
+          orderId?: string;
+          paymentUrl?: string;
+          sessionId?: string;
+        };
+      }>('complete', {
+        amount: amount,
+        orderId: orderId,
+      });
+
+      if (response.data.code !== this.SUCCESS_CODE) {
+        throw new BadRequestException(
+          response.data.message || 'PayRiff complete uğursuz oldu',
+        );
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error.response) {
+        const errorMessage =
+          error.response.data?.message || 'PayRiff complete xətası';
+        const errorCode = error.response.data?.code;
+
+        // Complete endpoint-i opsional ola bilər - əgər xəta varsa, log edək amma throw etməyək
+        console.warn(
+          `PayRiff complete endpoint xətası: ${errorMessage} (Code: ${errorCode || 'N/A'})`,
+        );
+
+        // Əgər order artıq completeddirsə və ya başqa bir səbəb varsa, xəta atmayaq
+        if (
+          errorMessage.includes('already') ||
+          errorMessage.includes('completed') ||
+          errorCode === '14010' ||
+          errorCode === '14013'
+        ) {
+          return true; // Artıq tamamlanıb deməkdir
+        }
+
+        throw new BadRequestException(
+          `PayRiff complete xətası: ${errorMessage} (Code: ${errorCode || 'N/A'})`,
+        );
+      }
+
+      throw new BadRequestException('PayRiff bağlantı xətası');
+    }
+  }
+
+  /**
    * Refund order (v3 API)
    * POST /refund
    */

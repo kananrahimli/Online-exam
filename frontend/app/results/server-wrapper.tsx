@@ -33,17 +33,18 @@ export default async function ResultsServerWrapper() {
       "/exam-attempts/my-attempts"
     ).catch(() => []);
 
-    // Calculate 3 days ago date
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // Calculate 1 hour ago date
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
-    // Only show completed attempts for exams that have expired (published 3+ days ago)
+    // Only show completed attempts for exams that have expired (published 1+ hour ago)
+    // This ensures results are visible after the exam is removed from published list
     const completedAttempts = (attempts || []).filter(
       (a: ExamAttemptWithExam) => {
         if (a.status !== "COMPLETED") return false;
         if (!a.exam?.publishedAt) return false;
         const publishedDate = new Date(a.exam.publishedAt);
-        return publishedDate <= threeDaysAgo;
+        return publishedDate <= oneHourAgo;
       }
     );
 

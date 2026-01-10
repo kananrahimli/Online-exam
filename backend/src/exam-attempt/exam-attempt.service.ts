@@ -688,6 +688,185 @@ export class ExamAttemptService {
     // This will be handled when the next submission happens after 1 hour passes
   }
 
+  /**
+   * Check and award prizes for all completed exams of a student
+   * This is called when student logs in and accesses dashboard
+   * Returns the newly awarded prize amount for the student
+   */
+  async checkAndAwardPrizesForStudent(studentId: string) {
+    console.log(
+      `[PRIZE] checkAndAwardPrizesForStudent called for studentId: ${studentId}`,
+    );
+
+    try {
+      // Get list of existing prize payments before awarding (to calculate new prizes)
+      const existingPrizePayments = await this.prisma.payment.findMany({
+        where: {
+          studentId,
+          transactionId: {
+            startsWith: 'PRIZE-',
+          },
+        },
+        select: {
+          id: true,
+          examId: true,
+          amount: true,
+        },
+      });
+
+      const existingPrizeMap = new Map<string, number>();
+      for (const payment of existingPrizePayments) {
+        const currentAmount = existingPrizeMap.get(payment.examId) || 0;
+        existingPrizeMap.set(payment.examId, currentAmount + payment.amount);
+      }
+
+      // Find all completed attempts for this student
+      const completedAttempts = await this.prisma.examAttempt.findMany({
+        where: {
+          studentId,
+          status: 'COMPLETED',
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              publishedAt: true,
+              status: true,
+              title: true,
+            },
+          },
+        },
+      });
+
+      if (completedAttempts.length === 0) {
+        console.log(
+          `[PRIZE] No completed attempts found for student ${studentId}`,
+        );
+        return { checked: 0, awarded: 0, prizeAmount: 0, prizeExams: [] };
+      }
+
+      console.log(
+        `[PRIZE] Found ${completedAttempts.length} completed attempts for student ${studentId}`,
+      );
+
+      // Get unique exam IDs
+      const examIds = [
+        ...new Set(completedAttempts.map((attempt) => attempt.examId)),
+      ];
+
+      let checkedCount = 0;
+      let awardedCount = 0;
+
+      // Check and award prizes for each exam
+      for (const examId of examIds) {
+        const attempt = completedAttempts.find((a) => a.examId === examId);
+        const exam = attempt?.exam;
+
+        if (!exam || !exam.publishedAt) {
+          continue;
+        }
+
+        // Check if 1 hour has passed since publish date
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        const publishDate = new Date(exam.publishedAt);
+
+        if (publishDate <= oneHourAgo) {
+          checkedCount++;
+          // Check if this student already received a prize for this exam
+          const existingPrize = await this.prisma.payment.findFirst({
+            where: {
+              studentId,
+              examId,
+              transactionId: {
+                startsWith: 'PRIZE-',
+              },
+            },
+          });
+
+          if (!existingPrize) {
+            // Check if prizes were already awarded globally for this exam
+            const globalPrizes = await this.prisma.payment.findFirst({
+              where: {
+                examId,
+                transactionId: {
+                  startsWith: 'PRIZE-',
+                },
+              },
+            });
+
+            if (!globalPrizes) {
+              // Prizes not awarded yet, check and award them
+              console.log(
+                `[PRIZE] Checking and awarding prizes for exam ${examId}`,
+              );
+              await this.awardPrizes(examId);
+              awardedCount++;
+            }
+          }
+        }
+      }
+
+      // Calculate newly awarded prize amount by checking new prize payments
+      const allPrizePayments = await this.prisma.payment.findMany({
+        where: {
+          studentId,
+          transactionId: {
+            startsWith: 'PRIZE-',
+          },
+        },
+        select: {
+          examId: true,
+          amount: true,
+        },
+      });
+
+      // Calculate total prize amount for exams where this student won
+      let totalPrizeAmount = 0;
+      const prizeExamsForStudent: Array<{
+        examId: string;
+        examTitle: string;
+      }> = [];
+
+      for (const examId of examIds) {
+        const examPayments = allPrizePayments.filter(
+          (p) => p.examId === examId,
+        );
+        const examTotal = examPayments.reduce((sum, p) => sum + p.amount, 0);
+        const existingAmount = existingPrizeMap.get(examId) || 0;
+        const newlyAwarded = examTotal - existingAmount;
+
+        if (newlyAwarded > 0) {
+          totalPrizeAmount += newlyAwarded;
+          const attempt = completedAttempts.find((a) => a.examId === examId);
+          if (attempt?.exam) {
+            prizeExamsForStudent.push({
+              examId,
+              examTitle: attempt.exam.title || 'Naməlum imtahan',
+            });
+          }
+        }
+      }
+
+      console.log(
+        `[PRIZE] Student ${studentId} - Checked: ${checkedCount} exams, Awarded: ${awardedCount} exams, Prize Amount: ${totalPrizeAmount} AZN`,
+      );
+
+      return {
+        checked: checkedCount,
+        awarded: awardedCount,
+        prizeAmount: totalPrizeAmount,
+        prizeExams: prizeExamsForStudent,
+      };
+    } catch (error) {
+      console.error(
+        `[PRIZE] Error checking prizes for student ${studentId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   private async awardPrizes(examId: string) {
     console.log(`[PRIZE] awardPrizes called for examId: ${examId}`);
 

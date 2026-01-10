@@ -65,7 +65,7 @@ READING COMPREHENSION SECTION:
 - Generate EXACTLY ${rcCount} questions based on this text
 - Questions MUST test comprehension of the text content
 - Type must be: "READING_COMPREHENSION"
-- Questions can be multiple choice (with 4 options) or open-ended format
+- ALL questions MUST be multiple choice format (with exactly 4 options)
 - These questions will appear AFTER the reading text in the exam
 `;
       } else {
@@ -79,7 +79,7 @@ READING COMPREHENSION SECTION:
 - After creating the text, generate EXACTLY ${rcCount} questions based on it
 - Type must be: "READING_COMPREHENSION"
 - Questions MUST test comprehension of the text you created
-- Questions can be multiple choice (with 4 options) or open-ended format
+- ALL questions MUST be multiple choice format (with exactly 4 options)
 - Include the created text in "readingText" field of the response
 `;
       }
@@ -91,7 +91,7 @@ READING COMPREHENSION SECTION:
 You MUST generate EXACTLY ${questionCount} questions. Not ${questionCount - 1}, not ${questionCount + 1}, but EXACTLY ${questionCount}.
 
 QUESTION DISTRIBUTION (MUST FOLLOW EXACTLY):
-${hasReading ? `- READING_COMPREHENSION: exactly ${rcCount} questions` : ''}
+${hasReading ? `- READING_COMPREHENSION: exactly ${rcCount} questions (ALL must be multiple choice with 4 options)` : ''}
 ${hasMultipleChoice ? `- MULTIPLE_CHOICE: exactly ${mcCount} questions` : ''}
 ${hasOpenEnded ? `- OPEN_ENDED: exactly ${oeCount} questions (20% of non-reading)` : ''}
 TOTAL: ${questionCount} questions
@@ -102,7 +102,7 @@ MANDATORY REQUIREMENTS:
 3. Topic: ${topic}
 4. Subject: ${subject}
 5. Generate questions in this order:
-   ${hasReading ? `a) First ${rcCount} questions: READING_COMPREHENSION` : ''}
+   ${hasReading ? `a) First ${rcCount} questions: READING_COMPREHENSION (ALL must be multiple choice)` : ''}
    ${hasMultipleChoice ? `b) Next ${mcCount} questions: MULTIPLE_CHOICE` : ''}
    ${hasOpenEnded ? `c) Last ${oeCount} questions: OPEN_ENDED` : ''}
 
@@ -123,9 +123,11 @@ OPEN_ENDED:
 
 READING_COMPREHENSION:
 - Must be based on the provided (or generated) reading text
-- Can be either multiple choice format (with options) or open-ended format
-- If multiple choice: include options (4 items) and correctAnswer
-- If open-ended: include modelAnswer instead
+- Type must be: "READING_COMPREHENSION"
+- Questions MUST be multiple choice format (with 4 options)
+- Must include "options" array with exactly 4 items
+- Must include "correctAnswer" field (index: 0, 1, 2, or 3 as string)
+- Must NOT include "modelAnswer" field
 - These questions will appear AFTER the reading text in the exam
 ${readingSection}
 
@@ -133,7 +135,7 @@ OUTPUT FORMAT - STRICT JSON:
 {
   ${!readingTextProvided && hasReading ? '"readingText": "generated reading text in Azerbaijani (150-300 words)",' : ''}
   "questions": [
-    ${hasReading ? `// First ${rcCount} questions with type: "READING_COMPREHENSION"` : ''}
+    ${hasReading ? `// First ${rcCount} questions with type: "READING_COMPREHENSION" (ALL multiple choice)` : ''}
     ${hasMultipleChoice ? `// Next ${mcCount} questions with type: "MULTIPLE_CHOICE"` : ''}
     ${hasOpenEnded ? `// Last ${oeCount} questions with type: "OPEN_ENDED"` : ''}
     {
@@ -161,13 +163,15 @@ OUTPUT FORMAT - STRICT JSON:
 
 VALIDATION CHECKLIST:
 ✓ questions.length === ${questionCount} (CRITICAL!)
-${hasReading ? `✓ First ${rcCount} questions have type: "READING_COMPREHENSION"` : ''}
+${hasReading ? `✓ First ${rcCount} questions have type: "READING_COMPREHENSION" (ALL multiple choice with 4 options)` : ''}
 ${hasMultipleChoice ? `✓ Next ${mcCount} questions have type: "MULTIPLE_CHOICE"` : ''}
 ${hasOpenEnded ? `✓ Last ${oeCount} questions have type: "OPEN_ENDED"` : ''}
 ✓ All text in Azerbaijani language
+✓ READING_COMPREHENSION: has options (4 items) + correctAnswer (string), NO modelAnswer
 ✓ MULTIPLE_CHOICE: has options (4 items) + correctAnswer (string), NO modelAnswer
 ✓ OPEN_ENDED: has modelAnswer, NO options, NO correctAnswer
-✓ correctAnswer values are "0", "1", "2", or "3" (as strings)
+✓ Each option array has exactly 4 items
+✓ correctAnswer is "0", "1", "2", or "3" (as string)
 ✓ All questions are relevant to topic: ${topic}
 ${!readingTextProvided && hasReading ? '✓ readingText field is included with generated text' : ''}`;
 
@@ -178,11 +182,7 @@ ${!readingTextProvided && hasReading ? '✓ readingText field is included with g
           { role: 'system', content: systemPrompt },
           {
             role: 'user',
-            content: `Generate EXACTLY ${questionCount} exam questions (${hasReading ? `${rcCount} reading, ` : ''}${hasMultipleChoice ? `${mcCount} multiple choice, ` : ''}${hasOpenEnded ? `${oeCount} open-ended` : ''}).
-
-CRITICAL: Count your questions before responding. The array MUST contain exactly ${questionCount} items.
-
-All content must be in Azerbaijani language.${!readingTextProvided && hasReading ? ' Generate a reading text since none was provided.' : ''}`,
+            content: `Generate EXACTLY ${questionCount} exam questions following all specifications. Ensure all content is in Azerbaijani language.${!readingTextProvided && hasReading ? ' Generate a reading text since none was provided.' : ''}`,
           },
         ],
         response_format: { type: 'json_object' },
@@ -240,55 +240,155 @@ All content must be in Azerbaijani language.${!readingTextProvided && hasReading
         }
       }
 
-      // Validate reading text if required but not provided
-      if (!readingTextProvided && hasReading && !result.readingText) {
-        console.warn(
-          'Reading text was not generated. Creating a placeholder...',
-        );
-        result.readingText = 'Oxu mətnini buraya əlavə edin.';
-      }
+      // Extract reading text from AI response
+      // AI may return it as "readingText" (string) field, we need to convert to "readingTexts" array format
+      const aiReadingText = result.readingText || '';
+      const finalReadingText =
+        readingTextProvided || aiReadingText
+          ? readingTextProvided
+            ? readingText
+            : aiReadingText
+          : null;
 
-      // Validate each question
-      for (let i = 0; i < result.questions.length; i++) {
-        const q = result.questions[i];
+      // Convert READING_COMPREHENSION questions to MULTIPLE_CHOICE (always multiple choice)
+      // Format them to match manual exam creation format
+      const processedQuestions = result.questions.map(
+        (q: any, index: number) => {
+          if (!q.type || !q.content) {
+            throw new Error(`Sual ${index + 1}-də type və ya content yoxdur`);
+          }
 
-        if (!q.type || !q.content) {
-          throw new Error(`Sual ${i + 1}-də type və ya content yoxdur`);
-        }
+          // Convert READING_COMPREHENSION to MULTIPLE_CHOICE (always multiple choice format)
+          const isReadingComprehension =
+            q.type === 'READING_COMPREHENSION' ||
+            q.type === QuestionType.READING_COMPREHENSION ||
+            (index < rcCount && hasReading);
 
-        if (
-          q.type === 'MULTIPLE_CHOICE' ||
-          q.type === 'READING_COMPREHENSION'
-        ) {
-          if (q.options && q.options.length > 0) {
+          if (isReadingComprehension) {
+            // Always convert to MULTIPLE_CHOICE with readingTextId
+            if (!q.options || q.options.length === 0) {
+              // If no options provided, create default options
+              console.warn(
+                `Question ${index + 1}: Reading comprehension question missing options, creating defaults`,
+              );
+              q.options = [
+                { content: 'Variant A' },
+                { content: 'Variant B' },
+                { content: 'Variant C' },
+                { content: 'Variant D' },
+              ];
+            }
             if (q.options.length !== 4) {
               console.warn(
-                `Question ${i + 1}: Expected 4 options, got ${q.options.length}`,
+                `Question ${index + 1}: Expected 4 options, got ${q.options.length}`,
               );
             }
             if (q.correctAnswer === undefined || q.correctAnswer === null) {
-              throw new Error(`Sual ${i + 1}-də correctAnswer yoxdur`);
+              throw new Error(`Sual ${index + 1}-də correctAnswer yoxdur`);
             }
+            return {
+              type: QuestionType.MULTIPLE_CHOICE,
+              content: q.content,
+              points: q.points || 1,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              readingTextId: 'temp_0', // Will be mapped to real ID on backend
+            };
           }
-        }
 
-        if (
-          q.type === 'OPEN_ENDED' ||
-          (q.type === 'READING_COMPREHENSION' && !q.options)
-        ) {
-          if (!q.modelAnswer || q.modelAnswer.trim().length === 0) {
-            console.warn(
-              `Question ${i + 1}: Open-ended question missing modelAnswer`,
-            );
-            q.modelAnswer = 'Cavab modeli əlavə edilməlidir.';
+          // Validate MULTIPLE_CHOICE questions
+          if (
+            q.type === 'MULTIPLE_CHOICE' ||
+            q.type === QuestionType.MULTIPLE_CHOICE
+          ) {
+            if (q.options && q.options.length > 0) {
+              if (q.options.length !== 4) {
+                console.warn(
+                  `Question ${index + 1}: Expected 4 options, got ${q.options.length}`,
+                );
+              }
+              if (q.correctAnswer === undefined || q.correctAnswer === null) {
+                throw new Error(`Sual ${index + 1}-də correctAnswer yoxdur`);
+              }
+            }
+            return {
+              type: QuestionType.MULTIPLE_CHOICE,
+              content: q.content,
+              points: q.points || 1,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+            };
           }
-        }
+
+          // Validate OPEN_ENDED questions
+          if (q.type === 'OPEN_ENDED' || q.type === QuestionType.OPEN_ENDED) {
+            if (!q.modelAnswer || q.modelAnswer.trim().length === 0) {
+              console.warn(
+                `Question ${index + 1}: Open-ended question missing modelAnswer`,
+              );
+              q.modelAnswer = 'Cavab modeli əlavə edilməlidir.';
+            }
+            return {
+              type: QuestionType.OPEN_ENDED,
+              content: q.content,
+              points: q.points || 1,
+              modelAnswer: q.modelAnswer,
+            };
+          }
+
+          // If type is unknown, default to MULTIPLE_CHOICE
+          console.warn(
+            `Question ${index + 1}: Unknown type "${q.type}", defaulting to MULTIPLE_CHOICE`,
+          );
+          return {
+            type: QuestionType.MULTIPLE_CHOICE,
+            content: q.content,
+            points: q.points || 1,
+            options: q.options || [
+              { content: 'Variant A' },
+              { content: 'Variant B' },
+              { content: 'Variant C' },
+              { content: 'Variant D' },
+            ],
+            correctAnswer: q.correctAnswer || '0',
+          };
+        },
+      );
+
+      // Format response to match manual exam creation format
+      const formattedResponse: any = {
+        questions: processedQuestions,
+      };
+
+      // Add readingTexts array if reading text exists (manual format)
+      // This matches the manual exam creation format
+      if (
+        hasReading &&
+        finalReadingText &&
+        finalReadingText.trim().length > 0
+      ) {
+        formattedResponse.readingTexts = [
+          {
+            content: finalReadingText,
+          },
+        ];
+      } else if (hasReading) {
+        // If reading text was required but not provided/generated, add empty placeholder
+        formattedResponse.readingTexts = [
+          {
+            content: 'Oxu mətnini buraya əlavə edin.',
+          },
+        ];
       }
 
       console.log(
-        `Final validation: Generated ${result.questions.length} questions (expected ${questionCount})`,
+        `Final validation: Generated ${processedQuestions.length} questions (expected ${questionCount})`,
       );
-      return result;
+      console.log(
+        `Reading comprehension questions converted: ${processedQuestions.filter((q: any) => q.readingTextId).length} questions linked to reading text`,
+      );
+
+      return formattedResponse;
     } catch (error) {
       console.error('AI generation error:', error);
       throw new Error('İmtahan yaratmaq mümkün olmadı: ' + error.message);

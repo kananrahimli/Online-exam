@@ -107,12 +107,27 @@ export default function AIGenerateExamPage() {
         readingQuestionCount: data.readingQuestionCount,
       });
 
-      setGeneratedExam({
+      // Format response to match manual exam creation format
+      // Backend now returns readingTexts array instead of readingText string
+      const formattedExam = {
         ...response.data,
         title: data.title,
         description: `${data.subject} - Sinif ${data.level} səviyyəsi, ${data.topic} mövzusu`,
         duration: data.duration,
-      });
+        // Extract readingText from readingTexts array for display
+        readingText:
+          response.data.readingTexts?.[0]?.content ||
+          response.data.readingText ||
+          "",
+        // Keep readingTexts array for saving
+        readingTexts:
+          response.data.readingTexts ||
+          (response.data.readingText
+            ? [{ content: response.data.readingText }]
+            : []),
+      };
+
+      setGeneratedExam(formattedExam);
 
       setStep("review");
     } catch (err: any) {
@@ -186,6 +201,8 @@ export default function AIGenerateExamPage() {
     setGeneratedExam({
       ...generatedExam,
       readingText: newText,
+      // Also update readingTexts array to match manual format
+      readingTexts: newText ? [{ content: newText }] : [],
     });
   };
 
@@ -194,36 +211,45 @@ export default function AIGenerateExamPage() {
 
     setLoading(true);
     try {
-      // Prepare reading texts if AI generated any
-      const readingTexts = generatedExam.readingText
-        ? [{ content: generatedExam.readingText }]
-        : [];
+      // Prepare reading texts if AI generated any (now in readingTexts array format)
+      const readingTexts =
+        generatedExam.readingTexts ||
+        (generatedExam.readingText
+          ? [{ content: generatedExam.readingText }]
+          : []);
 
-      // Map questions and link READING_COMPREHENSION questions to reading text
-      const questions = generatedExam.questions?.map(
-        (q: any, index: number) => {
-          const questionData: any = {
-            type: q.type,
-            content: q.content,
-            points: q.points || 1,
-            options: q.options?.map((opt: any) => ({
-              content: opt.content,
-            })),
-            correctAnswer: q.correctAnswer,
-            modelAnswer: q.modelAnswer,
-          };
+      // Map questions - backend already provides them in correct format
+      // Questions with readingTextId are already formatted as MULTIPLE_CHOICE or OPEN_ENDED
+      const questions = generatedExam.questions?.map((q: any) => {
+        const questionData: any = {
+          type: q.type,
+          content: q.content,
+          points: q.points || 1,
+          options: q.options?.map((opt: any) => ({
+            content: opt.content,
+          })),
+          correctAnswer: q.correctAnswer,
+          modelAnswer: q.modelAnswer,
+          // Keep readingTextId if it exists (from backend processing)
+          readingTextId: q.readingTextId,
+        };
 
-          // Link READING_COMPREHENSION questions to reading text using temp ID
-          if (
-            q.type === QuestionType.READING_COMPREHENSION &&
-            readingTexts.length > 0
-          ) {
-            questionData.readingTextId = "temp_0"; // Backend will map this to real ID
-          }
-
-          return questionData;
+        // Remove undefined/null fields
+        if (!questionData.options || questionData.options.length === 0) {
+          delete questionData.options;
         }
-      );
+        if (!questionData.correctAnswer && questionData.correctAnswer !== "0") {
+          delete questionData.correctAnswer;
+        }
+        if (!questionData.modelAnswer) {
+          delete questionData.modelAnswer;
+        }
+        if (!questionData.readingTextId) {
+          delete questionData.readingTextId;
+        }
+
+        return questionData;
+      });
 
       const examData = {
         title: generatedExam.title,
@@ -268,7 +294,7 @@ export default function AIGenerateExamPage() {
 
             {/* Reading Text Section - if AI generated reading text */}
             {generatedExam.readingText && (
-              <div className="border border-gray-200 rounded-lg p-6 bg-blue-50">
+              <div className="bg-blue-50 rounded-lg border border-blue-200 p-6 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-xl font-bold text-gray-900">
                     Oxuma Mətni
@@ -302,11 +328,9 @@ export default function AIGenerateExamPage() {
                   </p>
                 )}
 
-                {/* Reading Comprehension Questions Info */}
-                {generatedExam.questions?.some(
-                  (q: any) => q.type === QuestionType.READING_COMPREHENSION
-                ) && (
-                  <div className="mt-4 pt-4 border-t border-gray-300">
+                {/* Reading Comprehension Questions Info - using ReadingTextSection design */}
+                {generatedExam.questions?.some((q: any) => q.readingTextId) && (
+                  <div className="border-t border-gray-300 pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <svg
                         className="w-5 h-5 text-blue-600"
@@ -325,10 +349,7 @@ export default function AIGenerateExamPage() {
                     </p>
                     <p className="text-sm text-blue-800">
                       {generatedExam.questions
-                        ?.filter(
-                          (q: any) =>
-                            q.type === QuestionType.READING_COMPREHENSION
-                        )
+                        ?.filter((q: any) => q.readingTextId)
                         .map((q: any) => {
                           const questionIndex =
                             generatedExam.questions.findIndex(

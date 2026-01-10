@@ -57,6 +57,9 @@ export default function AIGenerateExamPage() {
   const [error, setError] = useState("");
   const [generatedExam, setGeneratedExam] = useState<any>(null);
   const [step, setStep] = useState<"form" | "review">("form");
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<
+    number | null
+  >(null);
 
   const {
     register,
@@ -111,6 +114,61 @@ export default function AIGenerateExamPage() {
     }
   };
 
+  const updateQuestion = (questionIndex: number, field: string, value: any) => {
+    if (!generatedExam) return;
+
+    const updatedQuestions = [...generatedExam.questions];
+    updatedQuestions[questionIndex] = {
+      ...updatedQuestions[questionIndex],
+      [field]: value,
+    };
+
+    setGeneratedExam({
+      ...generatedExam,
+      questions: updatedQuestions,
+    });
+  };
+
+  const updateOption = (
+    questionIndex: number,
+    optionIndex: number,
+    value: string
+  ) => {
+    if (!generatedExam) return;
+
+    const updatedQuestions = [...generatedExam.questions];
+    const updatedOptions = [...updatedQuestions[questionIndex].options];
+    updatedOptions[optionIndex] = {
+      ...updatedOptions[optionIndex],
+      content: value,
+    };
+
+    updatedQuestions[questionIndex] = {
+      ...updatedQuestions[questionIndex],
+      options: updatedOptions,
+    };
+
+    setGeneratedExam({
+      ...generatedExam,
+      questions: updatedQuestions,
+    });
+  };
+
+  const setCorrectAnswer = (questionIndex: number, optionIndex: number) => {
+    if (!generatedExam) return;
+
+    const updatedQuestions = [...generatedExam.questions];
+    updatedQuestions[questionIndex] = {
+      ...updatedQuestions[questionIndex],
+      correctAnswer: optionIndex.toString(),
+    };
+
+    setGeneratedExam({
+      ...generatedExam,
+      questions: updatedQuestions,
+    });
+  };
+
   const saveExam = async () => {
     if (!generatedExam) return;
 
@@ -122,16 +180,14 @@ export default function AIGenerateExamPage() {
         subject: generatedExam.subject || watch("subject"),
         level: generatedExam.level || watch("level"),
         duration: generatedExam.duration,
-        questions: generatedExam.questions?.map((q: any, index: number) => ({
+        questions: generatedExam.questions?.map((q: any) => ({
           type: q.type,
           content: q.content,
           points: q.points || 1,
-          options: q.options?.map((opt: any, optIndex: number) => ({
+          options: q.options?.map((opt: any) => ({
             content: opt.content,
-            order: optIndex,
           })),
           correctAnswer: q.correctAnswer,
-          order: index,
         })),
       };
 
@@ -167,50 +223,124 @@ export default function AIGenerateExamPage() {
             </div>
 
             <div className="space-y-4">
-              {generatedExam.questions?.map((question: any, index: number) => (
-                <div
-                  key={index}
-                  className="border border-gray-200 rounded-lg p-4"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold">Sual {index + 1}</h4>
-                    <button
-                      onClick={() => {
-                        // Regenerate question logic would go here
-                      }}
-                      className="text-sm text-indigo-600 hover:text-indigo-800"
-                    >
-                      Yenidən yarat
-                    </button>
-                  </div>
-                  <p className="text-gray-700 mb-3">{question.content}</p>
-                  {question.options && (
-                    <div className="space-y-2">
-                      {question.options.map((opt: any, optIndex: number) => (
-                        <div
-                          key={optIndex}
-                          className={`p-2 rounded ${
-                            optIndex === parseInt(question.correctAnswer || "0")
-                              ? "bg-green-100 border-2 border-green-500"
-                              : "bg-gray-50"
-                          }`}
-                        >
-                          {String.fromCharCode(65 + optIndex)}. {opt.content}
-                          {optIndex ===
-                            parseInt(question.correctAnswer || "0") && (
-                            <span className="ml-2 text-green-600 font-semibold">
-                              <span role="img" aria-label="Düzgün">
-                                ✓
-                              </span>{" "}
-                              Düzgün
-                            </span>
-                          )}
-                        </div>
-                      ))}
+              {generatedExam.questions?.map((question: any, index: number) => {
+                const isEditing = editingQuestionIndex === index;
+                return (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-6 bg-white"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <h4 className="text-lg font-bold text-gray-900">
+                        Sual {index + 1}
+                      </h4>
+                      <button
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingQuestionIndex(null);
+                          } else {
+                            setEditingQuestionIndex(index);
+                          }
+                        }}
+                        className="text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-all"
+                      >
+                        {isEditing ? "✓ Yadda saxla" : "✏️ Redaktə et"}
+                      </button>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Sual mətni */}
+                    {isEditing ? (
+                      <textarea
+                        value={question.content}
+                        onChange={(e) =>
+                          updateQuestion(index, "content", e.target.value)
+                        }
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900 mb-4 resize-y min-h-[100px]"
+                        rows={4}
+                        placeholder="Sual mətnini daxil edin..."
+                      />
+                    ) : (
+                      <p className="text-gray-800 mb-4 text-base leading-relaxed font-medium">
+                        {question.content}
+                      </p>
+                    )}
+
+                    {/* Variantlar */}
+                    {question.options && (
+                      <div className="space-y-3">
+                        {question.options.map((opt: any, optIndex: number) => {
+                          const isCorrect =
+                            optIndex ===
+                            parseInt(question.correctAnswer || "0");
+                          return (
+                            <div
+                              key={optIndex}
+                              className={`p-3 rounded-lg ${
+                                isCorrect
+                                  ? "bg-green-50 border-2 border-green-500 text-gray-900"
+                                  : "bg-gray-50 border border-gray-200 text-gray-900"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <button
+                                  onClick={() =>
+                                    setCorrectAnswer(index, optIndex)
+                                  }
+                                  className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                    isCorrect
+                                      ? "bg-green-500 border-green-600"
+                                      : "bg-white border-gray-400 hover:border-green-500"
+                                  }`}
+                                  title="Düzgün cavabı seç"
+                                >
+                                  {isCorrect && (
+                                    <span className="text-white text-xs font-bold">
+                                      ✓
+                                    </span>
+                                  )}
+                                </button>
+
+                                <span className="font-semibold text-gray-900 flex-shrink-0">
+                                  {String.fromCharCode(65 + optIndex)}.
+                                </span>
+
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={opt.content}
+                                    onChange={(e) =>
+                                      updateOption(
+                                        index,
+                                        optIndex,
+                                        e.target.value
+                                      )
+                                    }
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+                                    placeholder="Variant mətnini daxil edin..."
+                                  />
+                                ) : (
+                                  <span className="text-gray-900 flex-1">
+                                    {opt.content}
+                                  </span>
+                                )}
+
+                                {!isEditing && isCorrect && (
+                                  <span className="ml-auto text-green-700 font-semibold flex-shrink-0">
+                                    <span role="img" aria-label="Düzgün">
+                                      ✓
+                                    </span>{" "}
+                                    Düzgün
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex justify-end space-x-4 pt-6 border-t">

@@ -4,21 +4,25 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuthStore } from "@/stores/authStore";
 import { UserRole } from "@/lib/types";
+import { ROUTES } from "@/lib/constants/routes";
 
 interface NavigationProps {
-  user: {
-    firstName: string;
-    lastName: string;
-    role: UserRole;
-  } | null | undefined;
+  user:
+    | {
+        firstName: string;
+        lastName: string;
+        role: UserRole;
+      }
+    | null
+    | undefined;
   showProfileLink?: boolean;
   showDashboardLink?: boolean;
 }
 
-export default function Navigation({ 
-  user, 
+export default function Navigation({
+  user,
   showProfileLink = true,
-  showDashboardLink = false 
+  showDashboardLink = false,
 }: NavigationProps) {
   return (
     <nav className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-gray-200">
@@ -26,20 +30,20 @@ export default function Navigation({
         <div className="flex justify-between items-center h-20">
           <div className="flex items-center space-x-3">
             <Link
-              href="/dashboard"
-              className="w-10 h-10 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+              href={user ? ROUTES.DASHBOARD : ROUTES.HOME}
+              className="rounded-lg flex items-center justify-center overflow-hidden"
             >
               <Image
                 src="/download.png"
                 alt="Online İmtahan Logo"
-                width={40}
-                height={40}
+                width={50}
+                height={50}
                 className="w-full h-full object-contain"
               />
             </Link>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            {/* <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               Online İmtahan
-            </h1>
+            </h1> */}
           </div>
           <div className="flex items-center space-x-6">
             {user ? (

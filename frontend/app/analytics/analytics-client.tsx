@@ -96,18 +96,23 @@ interface AnalyticsClientProps {
   initialStats: ExamStats[];
   initialSummaryData: SummaryData;
   initialUser: any;
+  initialExamDetailsMap?: Record<string, ExamDetail>;
 }
 
 export default function AnalyticsClient({
   initialStats,
   initialSummaryData,
   initialUser,
+  initialExamDetailsMap = {},
 }: AnalyticsClientProps) {
   const router = useRouter();
   const { setUser } = useAuthStore();
   const { showAlert, AlertComponent } = useAlert();
   const [stats] = useState<ExamStats[]>(initialStats);
   const [summaryData] = useState<SummaryData>(initialSummaryData);
+  const [examDetailsMap, setExamDetailsMap] = useState<
+    Record<string, ExamDetail>
+  >(initialExamDetailsMap);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [examDetail, setExamDetail] = useState<ExamDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -118,34 +123,24 @@ export default function AnalyticsClient({
     {}
   );
 
-  console.log("====================================");
-  console.log(stats);
-  console.log("====================================");
-
   useEffect(() => {
     if (initialUser) {
       setUser(initialUser);
     }
   }, [initialUser, setUser]);
 
-  const fetchExamDetail = async (examId: string) => {
-    setLoadingDetail(true);
-    try {
-      const response = await api.get(
-        API_ENDPOINTS.ANALYTICS.EXAM_STATS(examId)
-      );
-      setExamDetail(response.data);
+  const fetchExamDetail = (examId: string) => {
+    // Use pre-loaded data from server-side, no API call needed
+    const detail = examDetailsMap[examId];
+    if (detail) {
+      setExamDetail(detail);
       setSelectedExamId(examId);
-    } catch (err: any) {
-      console.error("Error fetching exam detail:", err);
+    } else {
       showAlert({
-        message:
-          err.response?.data?.message || "Detallar yüklənərkən xəta baş verdi",
+        message: "Bu imtahan üçün detallar tapılmadı",
         type: "error",
         confirmButtonText: "Tamam",
       });
-    } finally {
-      setLoadingDetail(false);
     }
   };
 
@@ -163,20 +158,30 @@ export default function AnalyticsClient({
         type: "success",
         confirmButtonText: "Tamam",
       });
-      // Refresh exam detail
+      // Refresh exam detail from API after grading (since data has changed)
       if (selectedExamId) {
-        const response = await api.get(
-          API_ENDPOINTS.ANALYTICS.EXAM_STATS(selectedExamId)
-        );
-        setExamDetail(response.data);
-        // Update selected student attempt if modal is open
-        if (selectedStudentAttempt) {
-          const updatedAttempt = response.data.attempts.find(
-            (a: any) => a.id === selectedStudentAttempt.id
+        try {
+          const response = await api.get(
+            API_ENDPOINTS.ANALYTICS.EXAM_STATS(selectedExamId)
           );
-          if (updatedAttempt) {
-            setSelectedStudentAttempt(updatedAttempt);
+          const updatedDetail = response.data;
+          setExamDetail(updatedDetail);
+          // Update exam details map with fresh data
+          setExamDetailsMap((prev) => ({
+            ...prev,
+            [selectedExamId]: updatedDetail,
+          }));
+          // Update selected student attempt if modal is open
+          if (selectedStudentAttempt) {
+            const updatedAttempt = updatedDetail.attempts.find(
+              (a: any) => a.id === selectedStudentAttempt.id
+            );
+            if (updatedAttempt) {
+              setSelectedStudentAttempt(updatedAttempt);
+            }
           }
+        } catch (err: any) {
+          console.error("Error refreshing exam detail:", err);
         }
       }
     } catch (err: any) {
@@ -239,7 +244,11 @@ export default function AnalyticsClient({
               }
               totalStudents={summaryData?.totalStudents || 0}
             />
-            <ExamStatsTable stats={stats} onViewDetail={fetchExamDetail} />
+            <ExamStatsTable
+              stats={stats}
+              onViewDetail={fetchExamDetail}
+              selectedExamId={selectedExamId}
+            />
           </div>
         )}
 

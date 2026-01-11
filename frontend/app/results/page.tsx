@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   },
 };
 
+// Enable ISR for results page - revalidate every 60 seconds (1 minute)
+export const revalidate = 60;
+
 export default function ResultsPage() {
   return <ResultsServerWrapper />;
 }

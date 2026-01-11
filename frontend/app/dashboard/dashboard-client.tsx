@@ -15,17 +15,19 @@ interface DashboardClientProps {
 export default function DashboardClient({ initialUser }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { setUser, user } = useAuthStore();
   const [balanceMessage, setBalanceMessage] = useState<string | null>(null);
   const [prizeInfo, setPrizeInfo] = useState<{
     amount: number;
     exams: Array<{ examId: string; examTitle: string }>;
   } | null>(null);
+  const [currentUser, setCurrentUser] = useState(initialUser);
 
   useEffect(() => {
     // Sync initial user to store
     if (initialUser) {
       setUser(initialUser);
+      setCurrentUser(initialUser);
     }
   }, [initialUser, setUser]);
 
@@ -44,12 +46,28 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
               exams: response.data.prizeExams || [],
             });
 
-            // Update user balance in store
-            if (initialUser) {
-              setUser({
-                ...initialUser,
-                balance: (initialUser.balance || 0) + response.data.prizeAmount,
-              });
+            // Fetch updated user data from API to get the latest balance
+            try {
+              const userResponse = await api.get("/auth/me");
+              const updatedUser = userResponse.data;
+              setUser(updatedUser);
+              setCurrentUser(updatedUser);
+
+              // Force revalidation of balance cache by calling router.refresh()
+              // This ensures all components using user data will get the updated balance
+              router.refresh();
+            } catch (userError) {
+              console.error("User məlumatını yeniləyərkən xəta:", userError);
+              // Fallback: manually update balance
+              if (initialUser) {
+                const updatedUser = {
+                  ...initialUser,
+                  balance:
+                    (initialUser.balance || 0) + response.data.prizeAmount,
+                };
+                setUser(updatedUser);
+                setCurrentUser(updatedUser);
+              }
             }
           }
         } catch (error) {
@@ -60,7 +78,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
     };
 
     checkPrizes();
-  }, [initialUser, setUser]);
+  }, [initialUser, setUser, router]);
 
   useEffect(() => {
     // Check if balance was added
@@ -73,9 +91,12 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
     }
   }, [searchParams, router]);
 
+  // Use currentUser (which is updated after prize) or fallback to store user or initialUser
+  const displayUser = currentUser || user || initialUser;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <Navigation user={initialUser} />
+      <Navigation user={displayUser} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -188,7 +209,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
           </p>
         </div>
 
-        {initialUser.role === UserRole.STUDENT && (
+        {displayUser?.role === UserRole.STUDENT && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Link
               href="/exams"

@@ -773,7 +773,28 @@ export class ExamAttemptService {
 
         if (publishDate <= oneHourAgo) {
           checkedCount++;
+          // First check if prizes were already checked/awarded globally for this exam
+          // If any prize payment exists for this exam, it means prizes were already processed
+          const globalPrizes = await this.prisma.payment.findFirst({
+            where: {
+              examId,
+              transactionId: {
+                startsWith: 'PRIZE-',
+              },
+            },
+          });
+
+          if (globalPrizes) {
+            // Prizes were already checked and awarded for this exam
+            // No need to check again, just skip
+            console.log(
+              `[PRIZE] Exam ${examId} already processed (prizes already awarded). Skipping.`,
+            );
+            continue;
+          }
+
           // Check if this student already received a prize for this exam
+          // (This is a double-check, but shouldn't happen if globalPrizes is null)
           const existingPrize = await this.prisma.payment.findFirst({
             where: {
               studentId,
@@ -785,24 +806,16 @@ export class ExamAttemptService {
           });
 
           if (!existingPrize) {
-            // Check if prizes were already awarded globally for this exam
-            const globalPrizes = await this.prisma.payment.findFirst({
-              where: {
-                examId,
-                transactionId: {
-                  startsWith: 'PRIZE-',
-                },
-              },
-            });
-
-            if (!globalPrizes) {
-              // Prizes not awarded yet, check and award them
-              console.log(
-                `[PRIZE] Checking and awarding prizes for exam ${examId}`,
-              );
-              await this.awardPrizes(examId);
-              awardedCount++;
-            }
+            // Prizes not awarded yet for this exam, check and award them
+            console.log(
+              `[PRIZE] Checking and awarding prizes for exam ${examId}`,
+            );
+            await this.awardPrizes(examId);
+            awardedCount++;
+          } else {
+            console.log(
+              `[PRIZE] Student ${studentId} already received prize for exam ${examId}. Skipping.`,
+            );
           }
         }
       }

@@ -43,7 +43,7 @@ export default async function ProfileServerWrapper({
 
     // Fetch user with balance tag for cache revalidation
     // After revalidation, this will get fresh balance data
-    const user = await getServerUser({ tags: ["balance"] });
+    const user = await getServerUser({ tags: ["balance", "exams"] });
 
     if (!user) {
       redirect("/login");

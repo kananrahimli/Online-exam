@@ -59,3 +59,8 @@ export async function deleteExamAction(examId: string) {
     result: result,
   };
 }
+
+export async function revalidateExamsAction() {
+  revalidateTag("exams");
+  return { success: true };
+}

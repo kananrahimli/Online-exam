@@ -39,6 +39,38 @@ export default function ExamsClient({
     }
   }, [initialUser, setUser]);
 
+  // Always refetch exams on mount to ensure we have the latest data
+  // This ensures completed exams are filtered out even if cache is stale
+  useEffect(() => {
+    const refetchExams = async () => {
+      try {
+        const response = await api.get("/exams/published");
+        let examsData = response.data;
+
+        // Filter by selected teacher if any
+        if (selectedTeacherId) {
+          examsData = examsData.filter(
+            (exam: Exam) => exam.teacher?.id === selectedTeacherId
+          );
+        }
+
+        setExams(examsData);
+      } catch (err: any) {
+        console.error("Error fetching exams:", err);
+        if (err.response?.status === 401) {
+          return;
+        }
+        // Keep initial exams on error
+      }
+    };
+
+    // Only refetch if no teacher filter is selected (to avoid double fetch)
+    if (!selectedTeacherId) {
+      refetchExams();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
   const fetchExams = useCallback(async () => {
     try {
       const response = await api.get("/exams/published");

@@ -773,28 +773,10 @@ export class ExamAttemptService {
 
         if (publishDate <= oneHourAgo) {
           checkedCount++;
-          // First check if prizes were already checked/awarded globally for this exam
-          // If any prize payment exists for this exam, it means prizes were already processed
-          const globalPrizes = await this.prisma.payment.findFirst({
-            where: {
-              examId,
-              transactionId: {
-                startsWith: 'PRIZE-',
-              },
-            },
-          });
-
-          if (globalPrizes) {
-            // Prizes were already checked and awarded for this exam
-            // No need to check again, just skip
-            console.log(
-              `[PRIZE] Exam ${examId} already processed (prizes already awarded). Skipping.`,
-            );
-            continue;
-          }
 
           // Check if this student already received a prize for this exam
-          // (This is a double-check, but shouldn't happen if globalPrizes is null)
+          // Each student should be checked independently - one student's prize
+          // should not prevent checking prizes for other students
           const existingPrize = await this.prisma.payment.findFirst({
             where: {
               studentId,
@@ -806,9 +788,11 @@ export class ExamAttemptService {
           });
 
           if (!existingPrize) {
-            // Prizes not awarded yet for this exam, check and award them
+            // This student hasn't received a prize yet for this exam
+            // Call awardPrizes which will check all students and award prizes
+            // to those who haven't received them yet (including this student)
             console.log(
-              `[PRIZE] Checking and awarding prizes for exam ${examId}`,
+              `[PRIZE] Checking and awarding prizes for exam ${examId} (student ${studentId} hasn't received prize yet)`,
             );
             await this.awardPrizes(examId);
             awardedCount++;
@@ -1197,11 +1181,11 @@ export class ExamAttemptService {
       },
     });
 
-    // Check and award prizes for exams that are no longer active (7 days passed)
-    const uniqueExamIds = [...new Set(attempts.map((a) => a.exam.id))];
-    for (const examId of uniqueExamIds) {
-      await this.checkAndAwardPrizes(examId);
-    }
+    // Don't check prizes here - prizes should only be checked when:
+    // 1. Student logs in to dashboard (check-prizes endpoint)
+    // 2. Student submits exam (submitExam function)
+    // 3. Student views result (getResult function)
+    // This prevents checking prizes for all students when one student views their attempts
 
     return attempts;
   }

@@ -288,12 +288,12 @@ export default function ProfileClient({
   };
 
   // ✅ HYDRATION SAFE: Balance display logic
-  const getBalanceDisplay = () => {
-    if (!isClient || clientBalance === null) {
-      return initialUser?.balance?.toFixed(2) ?? "0.00";
-    }
-    return clientBalance.toFixed(2);
-  };
+  // const getBalanceDisplay = () => {
+  //   if (!isClient || clientBalance === null) {
+  //     return initialUser?.balance?.toFixed(2) ?? "0.00";
+  //   }
+  //   return clientBalance.toFixed(2);
+  // };
 
   // Teacher withdrawal handlers
   const handleSaveBankAccount = async () => {
@@ -583,7 +583,7 @@ export default function ProfileClient({
                 </h2>
                 <div className="mb-4">
                   <div className="text-4xl font-bold text-indigo-600 mb-2">
-                    {getBalanceDisplay()} AZN
+                    {clientBalance} AZN
                   </div>
                   <p className="text-sm text-gray-500 italic">
                     <span role="img" aria-label="İpucu">

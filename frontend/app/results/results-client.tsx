@@ -115,6 +115,10 @@ export default function ResultsClient({
             <p className="text-gray-500 text-lg mb-4">Hələ nəticə yoxdur</p>
             <Link
               href="/exams"
+              onClick={(e) => {
+                // Force refresh when navigating to exams page
+                router.refresh();
+              }}
               aria-label="Mövcud imtahanları görüntülə"
               className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >

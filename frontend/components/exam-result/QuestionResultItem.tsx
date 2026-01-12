@@ -39,9 +39,11 @@ export default function QuestionResultItem({
   const getCorrectAnswerOption = () => {
     // Check for MULTIPLE_CHOICE or READING_COMPREHENSION with options
     const hasOptions = question.options && question.options.length > 0;
-    if ((question.type === QuestionType.MULTIPLE_CHOICE || 
-         (question.type === QuestionType.READING_COMPREHENSION && hasOptions)) && 
-        question.options) {
+    if (
+      (question.type === QuestionType.MULTIPLE_CHOICE ||
+        (question.type === QuestionType.READING_COMPREHENSION && hasOptions)) &&
+      question.options
+    ) {
       if (question.correctAnswer && question.correctAnswer.length > 15) {
         return question.options.find(
           (opt) => opt.id === question.correctAnswer
@@ -81,29 +83,36 @@ export default function QuestionResultItem({
               <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">
                 {question.points || 1} bal
               </span>
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  isCorrect
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
-                }`}
-              >
-                {isCorrect ? (
-                  <>
-                    <span role="img" aria-label="Düzgün">
-                      ✓
-                    </span>{" "}
-                    Doğru
-                  </>
-                ) : (
-                  <>
-                    <span role="img" aria-label="Səhv">
-                      ✗
-                    </span>{" "}
-                    Səhv
-                  </>
-                )}
-              </span>
+              {answer && (
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    isCorrect
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {isCorrect ? (
+                    <>
+                      <span role="img" aria-label="Düzgün">
+                        ✓
+                      </span>{" "}
+                      Doğru
+                    </>
+                  ) : (
+                    <>
+                      <span role="img" aria-label="Səhv">
+                        ✗
+                      </span>{" "}
+                      Səhv
+                    </>
+                  )}
+                </span>
+              )}
+              {!answer && (
+                <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-semibold">
+                  Cavablandırılmayıb
+                </span>
+              )}
               {answer && (
                 <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm">
                   {answer.points || 0} bal qazanıldı
@@ -118,67 +127,70 @@ export default function QuestionResultItem({
       </div>
 
       {/* Multiple Choice Options - for MULTIPLE_CHOICE or READING_COMPREHENSION with options */}
-      {((question.type === QuestionType.MULTIPLE_CHOICE || 
-         (question.type === QuestionType.READING_COMPREHENSION && question.options && question.options.length > 0)) && 
-        question.options) && (
-        <div className="space-y-3 mt-4">
-          {question.options
-            .sort((a, b) => a.order - b.order)
-            .map((option, optIndex) => {
-              const isSelected = answer?.optionId === option.id;
-              const correctOption = getCorrectAnswerOption();
-              const isCorrectOption = correctOption?.id === option.id;
+      {(question.type === QuestionType.MULTIPLE_CHOICE ||
+        (question.type === QuestionType.READING_COMPREHENSION &&
+          question.options &&
+          question.options.length > 0)) &&
+        question.options && (
+          <div className="space-y-3 mt-4">
+            {question.options
+              .sort((a, b) => a.order - b.order)
+              .map((option, optIndex) => {
+                const isSelected = answer?.optionId === option.id;
+                const correctOption = getCorrectAnswerOption();
+                const isCorrectOption = correctOption?.id === option.id;
 
-              return (
-                <div
-                  key={option.id}
-                  className={`flex items-center p-4 border-2 rounded-lg ${
-                    isCorrectOption
-                      ? "border-green-500 bg-green-100"
-                      : isSelected && !isCorrectOption
-                      ? "border-red-500 bg-red-100"
-                      : "border-gray-200 bg-white"
-                  }`}
-                >
-                  <span
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                return (
+                  <div
+                    key={option.id}
+                    className={`flex items-center p-4 border-2 rounded-lg ${
                       isCorrectOption
-                        ? "bg-green-500 text-white"
+                        ? "border-green-500 bg-green-100"
                         : isSelected && !isCorrectOption
-                        ? "bg-red-500 text-white"
-                        : "bg-gray-200 text-gray-600"
+                        ? "border-red-500 bg-red-100"
+                        : "border-gray-200 bg-white"
                     }`}
                   >
-                    {String.fromCharCode(65 + optIndex)}
-                  </span>
-                  <span className="ml-4 text-gray-900 flex-1 font-medium">
-                    {option.content}
-                  </span>
-                  {isCorrectOption && (
-                    <span className="text-green-700 font-semibold">
-                      <span role="img" aria-label="Düzgün">
-                        ✓
-                      </span>{" "}
-                      Düzgün cavab
+                    <span
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                        isCorrectOption
+                          ? "bg-green-500 text-white"
+                          : isSelected && !isCorrectOption
+                          ? "bg-red-500 text-white"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {String.fromCharCode(65 + optIndex)}
                     </span>
-                  )}
-                  {isSelected && !isCorrectOption && (
-                    <span className="text-red-700 font-semibold">
-                      <span role="img" aria-label="Səhv">
-                        ✗
-                      </span>{" "}
-                      Sizin seçiminiz
+                    <span className="ml-4 text-gray-900 flex-1 font-medium">
+                      {option.content}
                     </span>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      )}
+                    {isCorrectOption && (
+                      <span className="text-green-700 font-semibold">
+                        <span role="img" aria-label="Düzgün">
+                          ✓
+                        </span>{" "}
+                        Düzgün cavab
+                      </span>
+                    )}
+                    {isSelected && !isCorrectOption && (
+                      <span className="text-red-700 font-semibold">
+                        <span role="img" aria-label="Səhv">
+                          ✗
+                        </span>{" "}
+                        Sizin seçiminiz
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
       {/* Open Ended - for OPEN_ENDED or READING_COMPREHENSION without options */}
-      {(question.type === QuestionType.OPEN_ENDED || 
-        (question.type === QuestionType.READING_COMPREHENSION && (!question.options || question.options.length === 0))) && (
+      {(question.type === QuestionType.OPEN_ENDED ||
+        (question.type === QuestionType.READING_COMPREHENSION &&
+          (!question.options || question.options.length === 0))) && (
         <div className="space-y-4 mt-4">
           <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-2">Sizin cavabınız:</p>

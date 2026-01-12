@@ -88,9 +88,24 @@ export default async function ResultsServerWrapper() {
     });
 
     // Filter completed attempts
-    // Show all completed attempts - the backend should handle filtering
+    // Only show results for exams that have been published for at least 1 hour
+    // (i.e., exam is no longer active)
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
     const completedAttempts = (attempts || []).filter(
-      (a: ExamAttemptWithExam) => a.status === "COMPLETED"
+      (a: ExamAttemptWithExam) => {
+        if (a.status !== "COMPLETED") return false;
+
+        // Check if exam has been published for at least 1 hour
+        if (a.exam?.publishedAt) {
+          const publishedAt = new Date(a.exam.publishedAt);
+          return publishedAt <= oneHourAgo;
+        }
+
+        // If no publishedAt, don't show (exam not published yet)
+        return false;
+      }
     );
 
     // Get unique exam IDs

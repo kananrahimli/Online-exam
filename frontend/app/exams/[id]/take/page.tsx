@@ -10,6 +10,7 @@ import { formatTimeDuration } from "@/lib/utils";
 import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 import TimerSection from "@/components/exam/TimerSection";
 import ReadingTextSection from "@/components/exam/ReadingTextSection";
+import { revalidateExamsAction } from "@/lib/actions/exams";
 
 // Question Component
 function QuestionComponent({
@@ -349,6 +350,8 @@ export default function TakeExamPage() {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      // Revalidate exams cache after submission
+      await revalidateExamsAction();
       router.push(ROUTES.EXAM_RESULT(attemptId));
     } catch (err: any) {
       console.error("Error submitting exam:", err);

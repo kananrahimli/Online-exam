@@ -29,17 +29,10 @@ Docker-izasiya üçün aşağıdakı proqramlar quraşdırılmış olmalıdır:
    - Docker Desktop-un işlədiyini yoxlayın (menyu bar-da Docker ikonu görünməlidir)
 
 3. **Quraşdırmanı yoxlayın:**
-
    ```bash
    docker --version
    docker-compose --version
    ```
-
-   Əgər komandalar işləmirsə:
-
-   - Terminal-i yenidən başladın
-   - Docker Desktop-un işlədiyini yoxlayın (menyu bar-da ikon)
-   - Sistem yenidən başlatma tələb oluna bilər
 
 #### Linux üçün:
 
@@ -67,21 +60,6 @@ sudo systemctl enable docker
 2. **WSL 2 quraşdırın** (Docker Desktop tələb edir)
    - Docker Desktop quraşdırma zamanı avtomatik olaraq quraşdırılır
 
-### Docker Quraşdırılmasını Yoxlamaq
-
-Docker quraşdırılıb-yoxlanılmadığını yoxlamaq üçün:
-
-```bash
-docker --version
-docker-compose --version
-```
-
-Əgər `command not found` xətası alırsınızsa:
-
-1. Docker Desktop-un işlədiyini yoxlayın
-2. Terminal-i yenidən başladın
-3. Sistem yenidən başlatma tələb oluna bilər
-
 ## 🚀 Addım-Addım Quraşdırma
 
 ### Addım 1: Environment Variables Təyin Etmək
@@ -90,17 +68,21 @@ docker-compose --version
 
 2. **Vacib:** Bu proyekt Supabase database istifadə edir. `.env` faylında aşağıdakı dəyərlər olmalıdır:
 
-   ```bash
+   ```env
    # Database (Supabase)
    DATABASE_URL="postgresql://user:password@host:port/database?pgbouncer=true"
    DIRECT_URL="postgresql://user:password@host:port/database"
 
    # Application
    PORT=3002
+   NODE_ENV=development  # və ya production
    JWT_SECRET="your-jwt-secret-key"
    FRONTEND_URL="http://localhost:3000"
 
    # Email Configuration
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
    SMTP_USER=your-email@gmail.com
    SMTP_PASS=your-app-password
    SMTP_FROM=your-email@gmail.com
@@ -144,24 +126,7 @@ Bu əmr:
 
 **İlk dəfə build edərkən bir neçə dəqiqə çəkə bilər.**
 
-### Addım 3: Database Migration-ləri İşə Salmaq
-
-**Qeyd:** Migration-lər avtomatik olaraq işə salınır (docker-compose.yml-də `command` bölməsinə baxın).
-
-Əgər manual olaraq işə salmaq istəyirsinizsə:
-
-```bash
-# Backend container-ına daxil olmaq
-docker-compose exec backend sh
-
-# Container içində migration-ləri işə salmaq
-npx prisma migrate deploy
-npx prisma generate
-```
-
-**Vacib:** Supabase database-iniz hazır olmalıdır və `.env` faylında `DATABASE_URL` və `DIRECT_URL` düzgün təyin olunmalıdır.
-
-### Addım 4: Container-ləri İşə Salmaq
+### Addım 3: Container-ləri İşə Salmaq
 
 Bütün servisləri (Backend, Frontend) birlikdə işə salmaq:
 
@@ -171,9 +136,7 @@ docker-compose up -d
 
 `-d` flag-i container-ləri background-da işə salır (detached mode).
 
-**Vacib sual: `docker-compose up -d` development və ya production üçündürmü?**
-
-**Cavab: Hər ikisi üçün istifadə oluna bilər!** Fərq `.env` faylında `NODE_ENV` dəyərindən asılıdır:
+**Vacib:** `docker-compose up -d` komandası həm development, həm də production üçün istifadə oluna bilər. Fərq `.env` faylında `NODE_ENV` dəyərindən asılıdır:
 
 #### Development üçün:
 
@@ -193,9 +156,7 @@ docker-compose up -d
    - Debug məlumatları gizlədilir
    - Production optimizasiyaları aktivdir
 
-**Qeyd:** `docker-compose up -d` komandası eynidir, fərq yalnız `.env` faylındakı `NODE_ENV` dəyərindədir!
-
-### Addım 5: Status-u Yoxlamaq
+### Addım 4: Status-u Yoxlamaq
 
 Container-lərin işləyib-işləmədiyini yoxlamaq:
 
@@ -205,7 +166,7 @@ docker-compose ps
 
 Bütün container-lər `Up` statusunda olmalıdır.
 
-### Addım 6: Log-ları Görmək
+### Addım 5: Log-ları Görmək
 
 Container-lərin log-larını görmək:
 
@@ -218,9 +179,6 @@ docker-compose logs -f backend
 
 # Yalnız frontend log-ları
 docker-compose logs -f frontend
-
-# Yalnız database log-ları
-docker-compose logs -f postgres
 ```
 
 ## 🌐 İstifadə
@@ -228,7 +186,7 @@ docker-compose logs -f postgres
 Container-lər işə salındıqdan sonra:
 
 - **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:3002 (və ya `.env` faylında təyin etdiyiniz PORT)
+- **Backend API:** http://localhost:3002
 - **Database:** Supabase (cloud database, local deyil)
 
 ## 🛠️ Əsas Əmrlər
@@ -252,7 +210,6 @@ docker-compose build
 
 - Image-ləri build etmək istəyirsiniz, amma hələ container-ləri işə salmaq istəmirsiniz
 - Build prosesini test etmək istəyirsiniz
-- Image-ləri hazırlamaq istəyirsiniz, sonra manual olaraq işə salacaqsınız
 
 #### 2. `docker-compose up -d --build`
 
@@ -271,30 +228,6 @@ docker-compose up -d --build
 - Ən çox istifadə olunan komanda
 - Development və production üçün ən praktik yol
 
-#### Praktik nümunələr:
-
-**Seçim 1: Ayrı-ayrı (2 addım)**
-
-```bash
-# Addım 1: Build et
-docker-compose build
-
-# Addım 2: İşə sal
-docker-compose up -d
-```
-
-**Seçim 2: Birlikdə (1 addım) - Tövsiyə olunur**
-
-```bash
-# Build et VƏ işə sal
-docker-compose up -d --build
-```
-
-**Qeyd:** Əgər image-lər artıq build edilibsə və dəyişiklik yoxdursa:
-
-- `docker-compose up -d` - Yalnız container-ləri işə salır (build etmir)
-- `docker-compose up -d --build` - Yenidən build edir (hətta dəyişiklik olmasa da)
-
 ### Container-ləri Dayandırmaq
 
 ```bash
@@ -307,7 +240,7 @@ docker-compose stop
 docker-compose down
 ```
 
-### Container-ləri və Volume-ları Silmək (Database data-sı da silinir!)
+### Container-ləri və Volume-ları Silmək
 
 ```bash
 docker-compose down -v
@@ -333,9 +266,6 @@ docker-compose exec backend sh
 
 # Frontend container-ına
 docker-compose exec frontend sh
-
-# Database container-ına
-docker-compose exec postgres psql -U online_exam -d online_exam
 ```
 
 ## 📁 Fayl Strukturu
@@ -344,18 +274,19 @@ docker-compose exec postgres psql -U online_exam -d online_exam
 OnlineExam/
 ├── docker-compose.yml          # Bütün servisləri təyin edən fayl
 ├── .env                        # Environment variables (yaradılmalıdır)
-├── .env.example                # Environment variables nümunəsi
 ├── backend/
 │   ├── Dockerfile              # Backend üçün Docker image
+│   ├── docker-entrypoint.sh   # Backend container başladıqda işə düşən script
 │   └── .dockerignore           # Backend üçün ignore faylları
 └── frontend/
     ├── Dockerfile              # Frontend üçün Docker image
+    ├── docker-entrypoint.sh   # Frontend container başladıqda işə düşən script
     └── .dockerignore           # Frontend üçün ignore faylları
 ```
 
 ## 🔧 Development vs Production
 
-### NODE_ENV nədir və nə vaxt təyin etməliyik?
+### NODE_ENV nədir?
 
 `NODE_ENV` environment variable-ı development və production mühitləri arasında fərq qoymaq üçün istifadə olunur.
 
@@ -375,7 +306,7 @@ NODE_ENV=development
 
 **Development xüsusiyyətləri:**
 
-- Hot reload işləyir
+- Hot reload işləyir (kod dəyişiklikləri avtomatik yenilənir)
 - Debug məlumatları görünür
 - Development tool-ları aktivdir
 - Daha detallı xəta mesajları
@@ -395,170 +326,7 @@ NODE_ENV=production
 - Development tool-ları deaktivdir
 - Minimal xəta mesajları (təhlükəsizlik üçün)
 
-### Development Mode
-
-Development üçün `docker-compose.yml`-də volumes mount edilmişdir:
-
-- Source code dəyişiklikləri avtomatik olaraq container-ə əks olunur
-- Hot reload işləyir
-- `NODE_ENV` təyin etməyin və ya `NODE_ENV=development` yazın
-
-**Development üçün `.env` faylı:**
-
-```env
-# NODE_ENV təyin etməyin (default development) və ya:
-NODE_ENV=development
-
-# Digər dəyərlər...
-DATABASE_URL=...
-JWT_SECRET=...
-```
-
-### Production Mode
-
-Production üçün:
-
-1. **`.env` faylında `NODE_ENV=production` təyin edin** (vacib!)
-2. Image-ləri build edin: `docker-compose build`
-3. Container-ləri işə salın: `docker-compose up -d`
-
-**Production üçün `.env` faylı:**
-
-```env
-# Mütləq təyin edin!
-NODE_ENV=production
-
-# Digər dəyərlər...
-DATABASE_URL=...
-JWT_SECRET=...
-```
-
-### NODE_ENV həmişə .env faylında olmalıdırmı?
-
-**Cavab: Bəli, amma dəyəri mühitdən asılı olaraq dəyişir:**
-
-1. **Development üçün:**
-
-   - `.env` faylında `NODE_ENV=development` yazın və ya
-   - Heç təyin etməyin (default development-dir)
-
-2. **Production üçün:**
-
-   - `.env` faylında **mütləq** `NODE_ENV=production` yazın
-   - Bu çox vacibdir, çünki:
-     - Performans optimallaşdırılır
-     - Təhlükəsizlik artırılır
-     - Resource istifadəsi azalır
-
-3. **Docker Compose istifadə edərkən:**
-   - `docker-compose.yml`-də `NODE_ENV: ${NODE_ENV:-production}` var
-   - Bu o deməkdir ki, `.env` faylında `NODE_ENV` yoxdursa, default `production` olacaq
-   - **Amma development üçün mütləq `NODE_ENV=development` yazın!**
-
-### Praktik nümunələr:
-
-**Development üçün `.env`:**
-
-```env
-NODE_ENV=development
-DATABASE_URL=postgresql://...
-JWT_SECRET=dev-secret-key
-PORT=3002
-```
-
-**Production üçün `.env`:**
-
-```env
-NODE_ENV=production
-DATABASE_URL=postgresql://...
-JWT_SECRET=super-secure-production-key
-PORT=3002
-```
-
-**Qeyd:** Production-da `.env` faylını Git-ə commit etməyin! `.env.example` istifadə edin.
-
-**Production Build Prosesi - Addım-Addım:**
-
-#### Backend Build Prosesi:
-
-1. **Dependencies yüklənir:**
-
-   ```bash
-   npm ci  # package-lock.json-dan dəqiq versiyalar yüklənir
-   ```
-
-2. **Prisma Client generate edilir:**
-
-   ```bash
-   npx prisma generate  # Database schema-sından TypeScript client yaradılır
-   ```
-
-3. **TypeScript kod build edilir:**
-
-   ```bash
-   npm run build  # src/ qovluğundakı kod dist/ qovluğuna compile edilir
-   ```
-
-4. **Production dependencies yüklənir:**
-
-   ```bash
-   npm ci --only=production  # Yalnız production dependencies (dev dependencies silinir)
-   ```
-
-5. **Container başladıqda:**
-   - `docker-entrypoint.sh` script işə düşür
-   - `NODE_ENV` yoxlanılır
-   - **Development modunda (`NODE_ENV=development`):**
-     - `node_modules` yoxlanılır, yoxdursa yüklənir
-     - Prisma Client generate edilir
-     - Database migration-ləri işə salınır
-     - **Build edilmir!** Yalnız `npm run dev` işə salınır (hot reload)
-   - **Production modunda (`NODE_ENV=production`):**
-     - `node_modules` yoxlanılır, yoxdursa yüklənir
-     - Prisma Client generate edilir
-     - Database migration-ləri işə salınır
-     - Build edilmiş fayllar istifadə olunur
-     - Production server (`npm run start:prod`) işə salınır
-
-#### Frontend Build Prosesi:
-
-1. **Dependencies yüklənir:**
-
-   ```bash
-   npm ci  # package-lock.json-dan dəqiq versiyalar yüklənir
-   ```
-
-2. **Next.js build edilir:**
-
-   ```bash
-   npm run build  # React komponentləri optimize edilir, static pages yaradılır
-   ```
-
-   - Static pages `.next/static/` qovluğunda yaradılır
-   - Server-side rendering üçün kod hazırlanır
-   - Assets optimize edilir və minify olunur
-
-3. **Container başladıqda:**
-   - `docker-entrypoint.sh` script işə düşür
-   - `NODE_ENV` yoxlanılır
-   - **Development modunda (`NODE_ENV=development`):**
-     - `node_modules` yoxlanılır, yoxdursa yüklənir
-     - **Build edilmir!** Yalnız `npm run dev` işə salınır (hot reload)
-   - **Production modunda (`NODE_ENV=production`):**
-     - `node_modules` yoxlanılır, yoxdursa yüklənir
-     - `.next` build qovluğu yoxlanılır, yoxdursa build edilir
-     - Next.js production server (`npm run start`) işə salınır
-
-**Qeyd:** İlk dəfə `docker-compose up` edəndə:
-
-- `node_modules` avtomatik yüklənir (həm backend, həm də frontend üçün)
-- Backend üçün Prisma Client generate edilir
-- Frontend üçün Next.js build edilir
-- Bütün proses avtomatikdir, manual müdaxilə lazım deyil
-
-**Niyə `NODE_ENV=production` təyin etməliyik?**
-
-`NODE_ENV=production` təyin etmək çox vacibdir, çünki:
+### Niyə `NODE_ENV=production` təyin etməliyik?
 
 1. **Performans optimallaşdırması:**
 
@@ -573,23 +341,69 @@ PORT=3002
    - Sensitive məlumatlar log-larda görünmür
 
 3. **Resource istifadəsi:**
-
    - Development dependencies yüklənmir
    - Daha az memory və CPU istifadə olunur
    - Server daha səmərəli işləyir
 
-4. **Framework xüsusiyyətləri:**
+## 🔄 Container-lərin Necə İşlədiyi
 
-   - Next.js production build-də optimallaşdırılmış kod yaradır
-   - NestJS production modunda daha sürətli işləyir
-   - Hot reload və development tool-ları deaktiv olur
+### Backend Container-i
 
-5. **Log və monitoring:**
-   - Production log-ları daha strukturlaşdırılmış olur
-   - Development console.log-ları gizlədilir
-   - Monitoring tool-ları düzgün işləyir
+**Container başladıqda nə baş verir:**
 
-**Qeyd:** Development üçün `NODE_ENV=development` və ya heç təyin etməyin (default development-dir).
+1. `docker-entrypoint.sh` script işə düşür
+2. `NODE_ENV` yoxlanılır (development və ya production)
+3. `node_modules` yoxlanılır - yoxdursa avtomatik yüklənir
+4. Prisma Client generate edilir
+5. Database migration-ləri işə salınır
+6. Server işə salınır:
+   - **Development modunda:** `npm run dev` (hot reload ilə)
+   - **Production modunda:** `npm run start:prod` (build edilmiş kod ilə)
+
+**Backend Dockerfile struktur:**
+
+- **Base stage:** Node.js 18 Alpine, OpenSSL quraşdırılır
+- **Dependencies stage:** Bütün dependencies yüklənir, Prisma Client generate edilir
+- **Build stage:** TypeScript kod build edilir (`dist/` qovluğuna)
+- **Development stage:** Development üçün hazırlanır (hot reload üçün)
+- **Production stage:** Production üçün hazırlanır (yalnız production dependencies)
+
+### Frontend Container-i
+
+**Container başladıqda nə baş verir:**
+
+1. `docker-entrypoint.sh` script işə düşür
+2. `NODE_ENV` yoxlanılır (development və ya production)
+3. `node_modules` yoxlanılır - yoxdursa avtomatik yüklənir
+4. Server işə salınır:
+   - **Development modunda:** `npm run dev` (hot reload ilə, build edilmir)
+   - **Production modunda:** `.next` qovluğu yoxlanılır, yoxdursa build edilir, sonra `npm run start` işə salınır
+
+**Frontend Dockerfile struktur:**
+
+- **Base stage:** Node.js 18 Alpine
+- Dependencies yüklənir
+- Source code kopyalanır
+- Next.js build edilir (production üçün)
+
+### Volume-lar (Data Saxlama)
+
+**Backend:**
+
+- `./backend:/app` - Source code mount olunur (development üçün)
+- `backend_node_modules:/app/node_modules` - node_modules ayrı volume-də saxlanılır
+
+**Frontend:**
+
+- `./frontend:/app` - Source code mount olunur (development üçün)
+- `frontend_node_modules:/app/node_modules` - node_modules ayrı volume-də saxlanılır
+- `frontend_next:/app/.next` - Next.js build cache-i saxlanılır
+
+**Niyə volume-lar istifadə olunur?**
+
+- `node_modules` volume-də saxlanılır ki, container yenidən başladıqda yenidən yüklənməsin
+- `.next` cache-i saxlanılır ki, build daha sürətli olsun
+- Source code mount olunur ki, development modunda dəyişikliklər dərhal görünsün
 
 ## 🐛 Problemlər və Həllər
 
@@ -601,8 +415,8 @@ PORT=3002
 
 ```bash
 # Port-u dəyişdirin .env faylında
-BACKEND_PORT=3002
-FRONTEND_PORT=3001
+PORT=3003  # Backend üçün
+FRONTEND_PORT=3001  # Frontend üçün
 ```
 
 Və ya port-u istifadə edən prosesi tapın və dayandırın:
@@ -650,44 +464,62 @@ sudo chown -R $USER:$USER .
 docker-compose build --no-cache
 ```
 
-### Problem 5: Migration xətası
+### Problem 5: Module not found xətası
 
-**Xəta:** `Migration failed`
+**Xəta:** `Cannot find module '@nestjs/common'` və ya başqa modullar
 
 **Həll:**
 
+1. Container-i yenidən başladın:
+
+   ```bash
+   docker-compose restart backend
+   ```
+
+2. Container-ə daxil olun və dependencies yükləyin:
+
+   ```bash
+   docker-compose exec backend sh
+   npm install
+   exit
+   ```
+
+3. Container-i yenidən başladın:
+   ```bash
+   docker-compose restart backend
+   ```
+
+### Problem 6: Prisma xətası
+
+**Xəta:** `PrismaClientInitializationError` və ya OpenSSL xətası
+
+**Həll:**
+
+1. Container-i yenidən başladın (Prisma Client avtomatik generate olunur)
+2. Əgər problem davam edərsə:
+   ```bash
+   docker-compose exec backend sh
+   npx prisma generate
+   exit
+   ```
+
+## 📊 Database Migration-ləri
+
+**Qeyd:** Migration-lər avtomatik olaraq işə salınır (docker-entrypoint.sh script-də).
+
+Əgər manual olaraq işə salmaq istəyirsinizsə:
+
 ```bash
-# Database container-ına daxil olun
+# Backend container-ına daxil olmaq
 docker-compose exec backend sh
 
-# Migration-ləri manual olaraq işə salın
+# Container içində migration-ləri işə salmaq
 npx prisma migrate deploy
 npx prisma generate
+exit
 ```
 
-## 📊 Database Backup və Restore
-
-**Qeyd:** Bu proyekt Supabase istifadə edir, ona görə database backup/restore Supabase dashboard-dan edilməlidir.
-
-### Supabase-dən Backup
-
-1. Supabase Dashboard-a daxil olun
-2. Database → Backups bölməsinə keçin
-3. Backup yaradın və ya mövcud backup-lardan birini seçin
-
-### Local Backup (pg_dump ilə)
-
-```bash
-# Supabase connection string ilə backup
-pg_dump "postgresql://user:password@host:port/database" > backup.sql
-```
-
-### Restore
-
-```bash
-# Backup-dan restore etmək
-psql "postgresql://user:password@host:port/database" < backup.sql
-```
+**Vacib:** Supabase database-iniz hazır olmalıdır və `.env` faylında `DATABASE_URL` və `DIRECT_URL` düzgün təyin olunmalıdır.
 
 ## 🔒 Təhlükəsizlik
 
@@ -699,15 +531,15 @@ psql "postgresql://user:password@host:port/database" < backup.sql
    - `.env` faylını Git-ə commit etməyin!
 
 2. **Firewall:**
-   - Yalnız lazımi port-ları açın (3000, 3001)
+   - Yalnız lazımi port-ları açın (3000, 3002)
    - Database port-unu (5432) yalnız localhost üçün açın
 
 ## 📝 Qeydlər
 
 - İlk dəfə işə salarkən database migration-ləri avtomatik olaraq işə salınır
-- Database data-sı `postgres_data` volume-unda saxlanılır
-- Container-ləri silmək database data-sını silmir (volume saxlanılır)
-- Database data-sını tam silmək üçün: `docker-compose down -v`
+- Container-ləri silmək database data-sını silmir (Supabase cloud-dadır)
+- `node_modules` volume-lərdə saxlanılır ki, container yenidən başladıqda yenidən yüklənməsin
+- Development modunda source code dəyişiklikləri avtomatik olaraq container-ə əks olunur (hot reload)
 
 ## 🆘 Yardım
 
@@ -716,3 +548,4 @@ psql "postgresql://user:password@host:port/database" < backup.sql
 1. Log-ları yoxlayın: `docker-compose logs`
 2. Container status-unu yoxlayın: `docker-compose ps`
 3. Container-ləri yenidən başladın: `docker-compose restart`
+4. Container-ləri tam silin və yenidən yaradın: `docker-compose down && docker-compose up -d --build`

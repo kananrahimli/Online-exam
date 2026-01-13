@@ -9,6 +9,7 @@ interface ExamAttemptWithExam {
   status: string;
   score?: number;
   totalScore?: number;
+  startedAt: string;
   submittedAt?: string;
   exam?: {
     id: string;
@@ -38,7 +39,7 @@ export default async function MyExamsServerWrapper() {
       {
         next: { revalidate: 60, tags: ["exams"] },
       }
-    ).catch(() => []);
+    ).catch(() => [] as ExamAttemptWithExam[]);
 
     return <MyExamsClient initialAttempts={attempts} initialUser={user} />;
   } catch (error) {

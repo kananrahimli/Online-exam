@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +21,7 @@ const verifyCodeSchema = z.object({
 
 type VerifyCodeFormData = z.infer<typeof verifyCodeSchema>;
 
-export default function VerifyCodePage() {
+function VerifyCodeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
@@ -61,7 +61,6 @@ export default function VerifyCodePage() {
     };
   }, [timeLeft]);
 
-
   const sendVerificationCode = async () => {
     if (!email) {
       setError(ERROR_MESSAGES.NOT_FOUND);
@@ -78,9 +77,7 @@ export default function VerifyCodePage() {
       setTimeLeft(120); // Reset timer to 2 minutes
       setCanResend(false);
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || ERROR_MESSAGES.GENERIC
-      );
+      setError(err.response?.data?.message || ERROR_MESSAGES.GENERIC);
     } finally {
       setLoading(false);
     }
@@ -103,12 +100,12 @@ export default function VerifyCodePage() {
 
       // Redirect to reset password page with token
       router.push(
-        `${ROUTES.RESET_PASSWORD}?token=${response.data.resetToken}&email=${encodeURIComponent(email)}`
+        `${ROUTES.RESET_PASSWORD}?token=${
+          response.data.resetToken
+        }&email=${encodeURIComponent(email)}`
       );
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || ERROR_MESSAGES.GENERIC
-      );
+      setError(err.response?.data?.message || ERROR_MESSAGES.GENERIC);
     } finally {
       setLoading(false);
     }
@@ -196,7 +193,9 @@ export default function VerifyCodePage() {
                 placeholder="000000"
               />
               {errors.code && (
-                <p className="mt-1 text-sm text-red-600">{errors.code.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.code.message}
+                </p>
               )}
               <p className="mt-2 text-xs text-gray-500">
                 Verifikasiya kodu email ünvanınıza göndərildi. Kodun müddəti 2
@@ -233,3 +232,19 @@ export default function VerifyCodePage() {
   );
 }
 
+export default function VerifyCodePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Yüklənir...</p>
+          </div>
+        </div>
+      }
+    >
+      <VerifyCodeContent />
+    </Suspense>
+  );
+}

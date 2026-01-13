@@ -137,9 +137,9 @@ export default function QuestionEditor({
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
                       placeholder="Sual mətni..."
                     />
-                    {errors.questions?.[index]?.content && (
+                    {(errors.questions as any)?.[index]?.content && (
                       <p className="mt-1 text-sm text-red-600">
-                        {errors.questions[index]?.content?.message}
+                        {(errors.questions as any)[index]?.content?.message}
                       </p>
                     )}
                   </div>
@@ -196,14 +196,14 @@ export default function QuestionEditor({
                           </div>
                         ))}
                       </div>
-                      {errors.questions?.[index]?.options && (
+                      {(errors.questions as any)?.[index]?.options && (
                         <p className="mt-1 text-sm text-red-600">
-                          {errors.questions[index]?.options?.message}
+                          {(errors.questions as any)[index]?.options?.message}
                         </p>
                       )}
-                      {errors.questions?.[index]?.correctAnswer && (
+                      {(errors.questions as any)?.[index]?.correctAnswer && (
                         <p className="mt-1 text-sm text-red-600">
-                          {errors.questions[index]?.correctAnswer?.message}
+                          {(errors.questions as any)[index]?.correctAnswer?.message}
                         </p>
                       )}
                     </div>
@@ -220,9 +220,9 @@ export default function QuestionEditor({
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
                         placeholder="Nümunə cavab..."
                       />
-                      {errors.questions?.[index]?.modelAnswer && (
+                      {(errors.questions as any)?.[index]?.modelAnswer && (
                         <p className="mt-1 text-sm text-red-600">
-                          {errors.questions[index]?.modelAnswer?.message}
+                          {(errors.questions as any)[index]?.modelAnswer?.message}
                         </p>
                       )}
                     </div>

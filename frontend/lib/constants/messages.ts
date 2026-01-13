@@ -41,5 +41,6 @@ export const VALIDATION_MESSAGES = {
   DURATION_REQUIRED: 'Müddət daxil edin',
   DURATION_MIN: 'Müddət minimum 1 dəqiqə olmalıdır',
   QUESTIONS_REQUIRED: 'Ən azı bir sual əlavə edin',
+  CODE_LENGTH: 'Kod 6 rəqəmdən ibarət olmalıdır',
 } as const;
 

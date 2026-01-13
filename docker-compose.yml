@@ -1,0 +1,74 @@
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      # Development və ya production target seçilir
+      target: ${BUILD_TARGET:-development}
+    container_name: online-exam-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3002}:${PORT:-3002}"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3002}
+      JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      PAYRIFF_SECRET_KEY: ${PAYRIFF_SECRET_KEY}
+      PAYRIFF_MERCHANT: ${PAYRIFF_MERCHANT}
+      PAYRIFF_BASE_URL: ${PAYRIFF_BASE_URL:-https://api.payriff.com/api/v3}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:3002}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      REQUIRE_TRANSFERS_FOR_EXAM: ${REQUIRE_TRANSFERS_FOR_EXAM:-false}
+    volumes:
+      # Development modunda source code mount olunur
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+      # dist/ volume-nu SILIN - NestJS özü yaradar
+    networks:
+      - online-exam-network
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: online-exam-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${PORT:-3002}}
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    networks:
+      - online-exam-network
+
+volumes:
+  backend_node_modules:
+    driver: local
+  # backend_dist silindi - lazım deyil
+  frontend_node_modules:
+    driver: local
+  frontend_next:
+    driver: local
+
+networks:
+  online-exam-network:
+    driver: bridge

@@ -58,9 +58,9 @@ export default function ReadingTextEditor({
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
                 placeholder="Mətnin məzmununu buraya yazın..."
               />
-              {errors.readingTexts?.[index]?.content && (
+              {(errors.readingTexts as any)?.[index]?.content && (
                 <p className="mt-1 text-sm text-red-600">
-                  {errors.readingTexts[index]?.content?.message}
+                  {(errors.readingTexts as any)[index]?.content?.message}
                 </p>
               )}
             </div>

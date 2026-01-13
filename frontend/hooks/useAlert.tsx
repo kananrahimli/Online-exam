@@ -11,7 +11,7 @@ interface AlertOptions {
 }
 
 interface ConfirmOptions extends AlertOptions {
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onCancel?: () => void;
 }
 
@@ -87,4 +87,3 @@ export function useAlert() {
     AlertComponent,
   };
 }
-

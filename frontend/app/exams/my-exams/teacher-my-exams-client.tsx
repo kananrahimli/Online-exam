@@ -150,7 +150,7 @@ export default function TeacherMyExamsClient({
               >
                 Hamısı
               </button>
-              <button
+              {/* <button
                 onClick={() => setStatusFilter(ExamStatus.DRAFT)}
                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
                   statusFilter === ExamStatus.DRAFT
@@ -159,7 +159,7 @@ export default function TeacherMyExamsClient({
                 }`}
               >
                 Qaralama
-              </button>
+              </button> */}
               <button
                 onClick={() => setStatusFilter(ExamStatus.PUBLISHED)}
                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
@@ -256,13 +256,13 @@ export default function TeacherMyExamsClient({
                   </div>
 
                   <div className="flex justify-end space-x-3 pt-4 border-t">
-                    <Link
+                    {/* <Link
                       href={`/exams/${exam.id}/edit`}
                       aria-label={`${exam.title} imtahanını redaktə et`}
                       className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-all"
                     >
                       Redaktə et
-                    </Link>
+                    </Link> */}
                     {exam.status === ExamStatus.DRAFT && (
                       <button
                         onClick={() => handlePublish(exam.id)}

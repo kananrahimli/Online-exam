@@ -91,6 +91,22 @@ export class ExamAttemptController {
   async testAwardPrizes(@Param('examId') examId: string) {
     // Test endpoint to manually trigger prize awarding
     await this.examAttemptService.checkAndAwardPrizes(examId);
-    return { message: 'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)' };
+    return {
+      message:
+        'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)',
+    };
+  }
+
+  @Post('check-prizes')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.STUDENT)
+  async checkPrizesForStudent(@CurrentUser() user: any) {
+    // Endpoint to check and award prizes for student when they log in
+    const result =
+      await this.examAttemptService.checkAndAwardPrizesForStudent(user.id);
+    return {
+      message: 'Mükafatlar yoxlanıldı',
+      ...result,
+    };
   }
 }

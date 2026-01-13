@@ -10,24 +10,29 @@ export async function getAuthToken(): Promise<string | null> {
 
 export async function fetchServerAPI<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & {
+    next?: { tags?: string[]; revalidate?: number };
+  } = {}
 ): Promise<T> {
   const token = await getAuthToken();
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Extract next option for Next.js cache
+  const { next, ...fetchOptions } = options;
+
   const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
+    ...fetchOptions,
+    headers: headers as HeadersInit,
     cache: options.cache || "force-cache",
-    next: options.next,
+    ...(next && { next }),
   });
 
   if (!response.ok) {
@@ -44,13 +49,22 @@ export async function fetchServerAPI<T>(
   return response.json();
 }
 
-export async function getServerUser() {
+export async function getServerUser(options?: {
+  revalidate?: number;
+  tags?: string[];
+}) {
   try {
     const token = await getAuthToken();
     if (!token) {
       return null;
     }
-    return await fetchServerAPI<any>("/auth/me");
+    return await fetchServerAPI<any>("/auth/me", {
+      next: options?.tags
+        ? { tags: options.tags }
+        : options?.revalidate
+        ? { revalidate: options.revalidate }
+        : undefined,
+    });
   } catch (error: any) {
     if (error.message === "UNAUTHORIZED") {
       return null;

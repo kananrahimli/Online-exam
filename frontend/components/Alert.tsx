@@ -42,30 +42,35 @@ export default function Alert({
   const style = ALERT_STYLES[type];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-md p-4">
       <div
-        className={`${style.bg} ${style.border} border-2 rounded-xl shadow-2xl p-6 max-w-md mx-4 animate-in fade-in zoom-in duration-200`}
+        className={`${style.bg} ${style.border} border-l-4 rounded-xl shadow-2xl p-6 max-w-lg w-full animate-in fade-in zoom-in duration-200`}
       >
-        <div className="flex items-start">
-          <div className={`${style.text} text-3xl mr-4 flex-shrink-0`}>
+        <div className="flex items-start gap-4">
+          {/* Icon */}
+          <div className={`${style.iconBg} ${style.iconColor} w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-xl font-bold shadow-sm`}>
             {style.icon}
           </div>
-          <div className="flex-1">
-            <p className={`${style.text} text-lg font-semibold mb-4`}>
+          
+          {/* Content */}
+          <div className="flex-1 min-w-0 pt-0.5">
+            <p className={`${style.text} text-base font-medium leading-relaxed mb-6 break-words`}>
               {message}
             </p>
-            <div className="flex justify-end gap-3">
+            
+            {/* Buttons */}
+            <div className="flex justify-end gap-3 mt-6">
               {showCancel && (
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-all"
+                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 rounded-lg font-bold text-sm transition-all shadow-sm hover:shadow-md border border-gray-200 min-w-[100px]"
                 >
                   {cancelButtonText}
                 </button>
               )}
               <button
                 onClick={showCancel ? handleConfirm : onClose}
-                className={`px-4 py-2 ${style.button} text-white rounded-lg font-medium transition-all`}
+                className={`px-6 py-3 ${style.button} text-white rounded-lg font-bold text-sm transition-all shadow-lg hover:shadow-xl active:scale-95 min-w-[100px] border-2 border-transparent hover:border-white/20`}
               >
                 {confirmButtonText}
               </button>

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { UserRole } from "@/lib/types";
 import Link from "next/link";
+import Navigation from "@/components/Navigation";
+import api from "@/lib/api";
 
 interface DashboardClientProps {
   initialUser: any;
@@ -13,15 +15,70 @@ interface DashboardClientProps {
 export default function DashboardClient({ initialUser }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { setUser, user } = useAuthStore();
   const [balanceMessage, setBalanceMessage] = useState<string | null>(null);
+  const [prizeInfo, setPrizeInfo] = useState<{
+    amount: number;
+    exams: Array<{ examId: string; examTitle: string }>;
+  } | null>(null);
+  const [currentUser, setCurrentUser] = useState(initialUser);
 
   useEffect(() => {
     // Sync initial user to store
     if (initialUser) {
       setUser(initialUser);
+      setCurrentUser(initialUser);
     }
   }, [initialUser, setUser]);
+
+  useEffect(() => {
+    // Check and award prizes for student when they log in to dashboard
+    const checkPrizes = async () => {
+      if (initialUser?.role === UserRole.STUDENT) {
+        try {
+          const response = await api.post("/exam-attempts/check-prizes");
+          console.log("Mükafatlar yoxlanıldı", response.data);
+
+          // If student won a prize, show celebration
+          if (response.data?.prizeAmount > 0) {
+            setPrizeInfo({
+              amount: response.data.prizeAmount,
+              exams: response.data.prizeExams || [],
+            });
+
+            // Fetch updated user data from API to get the latest balance
+            try {
+              const userResponse = await api.get("/auth/me");
+              const updatedUser = userResponse.data;
+              setUser(updatedUser);
+              setCurrentUser(updatedUser);
+
+              // Force revalidation of balance cache by calling router.refresh()
+              // This ensures all components using user data will get the updated balance
+              router.refresh();
+            } catch (userError) {
+              console.error("User məlumatını yeniləyərkən xəta:", userError);
+              // Fallback: manually update balance
+              if (initialUser) {
+                const updatedUser = {
+                  ...initialUser,
+                  balance:
+                    (initialUser.balance || 0) + response.data.prizeAmount,
+                };
+                setUser(updatedUser);
+                setCurrentUser(updatedUser);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Mükafatları yoxlarkən xəta:", error);
+          // Silently fail - don't show error to user
+        }
+      }
+    };
+
+    checkPrizes();
+  }, [initialUser, setUser, router]);
 
   useEffect(() => {
     // Check if balance was added
@@ -34,65 +91,110 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
     }
   }, [searchParams, router]);
 
+  // Use currentUser (which is updated after prize) or fallback to store user or initialUser
+  const displayUser = currentUser || user || initialUser;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Modern Navigation */}
-      <nav className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center space-x-3">
-              <Link
-                href="/dashboard"
-                className="w-10 h-10 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
-              >
-                <span
-                  className="text-white font-bold text-lg"
-                  role="img"
-                  aria-label="İmtahan kağızı"
-                >
-                  📝
-                </span>
-              </Link>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Online İmtahan
-              </h1>
-            </div>
-            <div className="flex items-center space-x-6">
-              <div className="text-right">
-                <p className="text-gray-900 font-semibold">
-                  {initialUser.firstName} {initialUser.lastName}
-                </p>
-                <p className="text-sm text-gray-500 capitalize">
-                  {initialUser.role === UserRole.STUDENT ? "Şagird" : "Müəllim"}
-                </p>
-              </div>
-              <Link
-                href="/profile"
-                aria-label="Şəxsi məlumatlar səhifəsinə keç"
-                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                Şəxsi məlumatlar
-              </Link>
-              <button
-                onClick={() => {
-                  useAuthStore.getState().logout();
-                  // logout() already redirects to /login
-                }}
-                aria-label="Hesabdan çıxış et"
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                Çıxış
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation user={displayUser} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {balanceMessage && (
           <div className="mb-4 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-lg">
             <p className="font-medium">{balanceMessage}</p>
+          </div>
+        )}
+
+        {/* Prize Celebration Modal */}
+        {prizeInfo && prizeInfo.amount > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-md p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative overflow-hidden animate-scaleIn">
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full -mr-20 -mt-20 opacity-20"></div>
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full -ml-16 -mb-16 opacity-20"></div>
+
+              {/* Close button */}
+              <button
+                onClick={() => setPrizeInfo(null)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
+              <div className="relative z-10 text-center">
+                {/* Trophy icon */}
+                <div className="mb-6 flex justify-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                    <span className="text-5xl" role="img" aria-label="Kubok">
+                      🏆
+                    </span>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                  Təbriklər! 🎉
+                </h2>
+
+                {/* Prize amount */}
+                <div className="mb-6">
+                  <p className="text-gray-600 text-lg mb-2">
+                    Siz mükafat qazandınız:
+                  </p>
+                  <div className="inline-flex items-center justify-center bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-4 rounded-xl shadow-lg">
+                    <span className="text-4xl font-bold">
+                      +{prizeInfo.amount.toFixed(2)} AZN
+                    </span>
+                  </div>
+                </div>
+
+                {/* Exam info */}
+                {prizeInfo.exams.length > 0 && (
+                  <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm font-semibold text-blue-900 mb-2">
+                      Qazandığınız imtahanlar:
+                    </p>
+                    <div className="space-y-1">
+                      {prizeInfo.exams.map((exam, index) => (
+                        <p
+                          key={exam.examId}
+                          className="text-sm text-blue-800 font-medium"
+                        >
+                          {index + 1}. {exam.examTitle}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Message */}
+                <p className="text-gray-700 mb-6">
+                  Mükafatınız balansınıza əlavə edildi. Davam edin və daha çox
+                  qazanın!
+                </p>
+
+                {/* Button */}
+                <button
+                  onClick={() => setPrizeInfo(null)}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 px-6 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg"
+                >
+                  Əla! Davam edək
+                </button>
+              </div>
+            </div>
           </div>
         )}
         <div className="mb-8">
@@ -107,7 +209,7 @@ export default function DashboardClient({ initialUser }: DashboardClientProps) {
           </p>
         </div>
 
-        {initialUser.role === UserRole.STUDENT && (
+        {displayUser?.role === UserRole.STUDENT && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Link
               href="/exams"

@@ -11,11 +11,13 @@ interface ExamStat {
 interface ExamStatsTableProps {
   stats: ExamStat[];
   onViewDetail: (examId: string) => void;
+  selectedExamId?: string | null;
 }
 
 export default function ExamStatsTable({
   stats,
   onViewDetail,
+  selectedExamId,
 }: ExamStatsTableProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -50,7 +52,12 @@ export default function ExamStatsTable({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {stats.map((stat) => (
-              <tr key={stat.examId} className="hover:bg-gray-50">
+              <tr
+                key={stat.examId}
+                className={`hover:bg-gray-50 ${
+                  selectedExamId === stat.examId ? "bg-indigo-50" : ""
+                }`}
+              >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {stat.examTitle}

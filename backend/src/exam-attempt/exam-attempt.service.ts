@@ -16,6 +16,9 @@ export class ExamAttemptService {
     // Check if exam exists and is published
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
+      include: {
+        teacher: true,
+      },
     });
 
     if (!exam) {
@@ -106,7 +109,7 @@ export class ExamAttemptService {
       });
 
       // Create payment record
-      await this.prisma.payment.create({
+      const payment = await this.prisma.payment.create({
         data: {
           studentId,
           examId,
@@ -116,6 +119,9 @@ export class ExamAttemptService {
           transactionId: `BAL-DED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         },
       });
+
+      // Split payment between teacher and admin (50/50)
+      await this.splitPayment(payment.id, examPrice, exam.teacherId);
     }
 
     // Check if expired
@@ -630,8 +636,8 @@ export class ExamAttemptService {
       },
     });
 
-    // Award prizes to top 3 students (after exam is removed from published list - 3 days after publish)
-    // We'll check when to award prizes - if exam was published 3+ days ago, award immediately
+    // Award prizes to top 3 students (after exam is removed from published list - 1 hour after publish)
+    // We'll check when to award prizes - if exam was published 1+ hour ago, award immediately
     // Otherwise, schedule for when exam is removed from published list
     await this.checkAndAwardPrizes(attempt.examId);
 
@@ -658,15 +664,15 @@ export class ExamAttemptService {
       return;
     }
 
-    // Check if 3 days have passed since publish date (exam is removed from published list)
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // Check if 1 hour has passed since publish date (exam is removed from published list)
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const publishDate = new Date(exam.publishedAt);
-    const shouldAwardPrizes = publishDate <= threeDaysAgo;
+    const shouldAwardPrizes = publishDate <= oneHourAgo;
 
     console.log(
-      `[PRIZE] Exam ${examId} - Published: ${publishDate}, ThreeDaysAgo: ${threeDaysAgo}, ShouldAward: ${shouldAwardPrizes}`,
+      `[PRIZE] Exam ${examId} - Published: ${publishDate}, OneHourAgo: ${oneHourAgo}, ShouldAward: ${shouldAwardPrizes}`,
     );
 
     if (shouldAwardPrizes) {
@@ -678,8 +684,192 @@ export class ExamAttemptService {
         `[PRIZE] Exam ${examId} is still active, prizes will be awarded later`,
       );
     }
-    // If exam is still in published list (< 3 days), prizes will be awarded later
-    // This will be handled when the next submission happens after 3 days pass
+    // If exam is still in published list (< 1 hour), prizes will be awarded later
+    // This will be handled when the next submission happens after 1 hour passes
+  }
+
+  /**
+   * Check and award prizes for all completed exams of a student
+   * This is called when student logs in and accesses dashboard
+   * Returns the newly awarded prize amount for the student
+   */
+  async checkAndAwardPrizesForStudent(studentId: string) {
+    console.log(
+      `[PRIZE] checkAndAwardPrizesForStudent called for studentId: ${studentId}`,
+    );
+
+    try {
+      // Get list of existing prize payments before awarding (to calculate new prizes)
+      const existingPrizePayments = await this.prisma.payment.findMany({
+        where: {
+          studentId,
+          transactionId: {
+            startsWith: 'PRIZE-',
+          },
+        },
+        select: {
+          id: true,
+          examId: true,
+          amount: true,
+        },
+      });
+
+      const existingPrizeMap = new Map<string, number>();
+      for (const payment of existingPrizePayments) {
+        const currentAmount = existingPrizeMap.get(payment.examId) || 0;
+        existingPrizeMap.set(payment.examId, currentAmount + payment.amount);
+      }
+
+      // Find all completed attempts for this student
+      const completedAttempts = await this.prisma.examAttempt.findMany({
+        where: {
+          studentId,
+          status: 'COMPLETED',
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              publishedAt: true,
+              status: true,
+              title: true,
+            },
+          },
+        },
+      });
+
+      if (completedAttempts.length === 0) {
+        console.log(
+          `[PRIZE] No completed attempts found for student ${studentId}`,
+        );
+        return { checked: 0, awarded: 0, prizeAmount: 0, prizeExams: [] };
+      }
+
+      console.log(
+        `[PRIZE] Found ${completedAttempts.length} completed attempts for student ${studentId}`,
+      );
+
+      // Get unique exam IDs
+      const examIds = [
+        ...new Set(completedAttempts.map((attempt) => attempt.examId)),
+      ];
+
+      let checkedCount = 0;
+      let awardedCount = 0;
+
+      // Check and award prizes for each exam
+      // Optimize: Only check exams where student hasn't received a prize yet
+      for (const examId of examIds) {
+        // Skip if student already received a prize for this exam (from existingPrizeMap)
+        if (existingPrizeMap.has(examId)) {
+          console.log(
+            `[PRIZE] Student ${studentId} already received prize for exam ${examId}. Skipping.`,
+          );
+          continue;
+        }
+
+        const attempt = completedAttempts.find((a) => a.examId === examId);
+        const exam = attempt?.exam;
+
+        if (!exam || !exam.publishedAt) {
+          continue;
+        }
+
+        // Check if 1 hour has passed since publish date
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        const publishDate = new Date(exam.publishedAt);
+
+        if (publishDate <= oneHourAgo) {
+          checkedCount++;
+
+          // Double-check if this student already received a prize for this exam
+          // (in case prize was awarded between the initial query and now)
+          const existingPrize = await this.prisma.payment.findFirst({
+            where: {
+              studentId,
+              examId,
+              transactionId: {
+                startsWith: 'PRIZE-',
+              },
+            },
+          });
+
+          if (!existingPrize) {
+            // This student hasn't received a prize yet for this exam
+            // Call awardPrizes which will check all students and award prizes
+            // to those who haven't received them yet (including this student)
+            console.log(
+              `[PRIZE] Checking and awarding prizes for exam ${examId} (student ${studentId} hasn't received prize yet)`,
+            );
+            await this.awardPrizes(examId);
+            awardedCount++;
+          } else {
+            console.log(
+              `[PRIZE] Student ${studentId} already received prize for exam ${examId} (double-check). Skipping.`,
+            );
+          }
+        }
+      }
+
+      // Calculate newly awarded prize amount by checking new prize payments
+      const allPrizePayments = await this.prisma.payment.findMany({
+        where: {
+          studentId,
+          transactionId: {
+            startsWith: 'PRIZE-',
+          },
+        },
+        select: {
+          examId: true,
+          amount: true,
+        },
+      });
+
+      // Calculate total prize amount for exams where this student won
+      let totalPrizeAmount = 0;
+      const prizeExamsForStudent: Array<{
+        examId: string;
+        examTitle: string;
+      }> = [];
+
+      for (const examId of examIds) {
+        const examPayments = allPrizePayments.filter(
+          (p) => p.examId === examId,
+        );
+        const examTotal = examPayments.reduce((sum, p) => sum + p.amount, 0);
+        const existingAmount = existingPrizeMap.get(examId) || 0;
+        const newlyAwarded = examTotal - existingAmount;
+
+        if (newlyAwarded > 0) {
+          totalPrizeAmount += newlyAwarded;
+          const attempt = completedAttempts.find((a) => a.examId === examId);
+          if (attempt?.exam) {
+            prizeExamsForStudent.push({
+              examId,
+              examTitle: attempt.exam.title || 'Naməlum imtahan',
+            });
+          }
+        }
+      }
+
+      console.log(
+        `[PRIZE] Student ${studentId} - Checked: ${checkedCount} exams, Awarded: ${awardedCount} exams, Prize Amount: ${totalPrizeAmount} AZN`,
+      );
+
+      return {
+        checked: checkedCount,
+        awarded: awardedCount,
+        prizeAmount: totalPrizeAmount,
+        prizeExams: prizeExamsForStudent,
+      };
+    } catch (error) {
+      console.error(
+        `[PRIZE] Error checking prizes for student ${studentId}:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   private async awardPrizes(examId: string) {
@@ -927,7 +1117,7 @@ export class ExamAttemptService {
       throw new BadRequestException('İmtahan hələ təqdim olunmayıb');
     }
 
-    // Check and award prizes if exam is no longer active (3 days passed)
+    // Check and award prizes if exam is no longer active (1 hour passed)
     await this.checkAndAwardPrizes(attempt.examId);
 
     // Combine all questions (from topics and regular questions) and map readingText
@@ -999,11 +1189,11 @@ export class ExamAttemptService {
       },
     });
 
-    // Check and award prizes for exams that are no longer active (7 days passed)
-    const uniqueExamIds = [...new Set(attempts.map((a) => a.exam.id))];
-    for (const examId of uniqueExamIds) {
-      await this.checkAndAwardPrizes(examId);
-    }
+    // Don't check prizes here - prizes should only be checked when:
+    // 1. Student logs in to dashboard (check-prizes endpoint)
+    // 2. Student submits exam (submitExam function)
+    // 3. Student views result (getResult function)
+    // This prevents checking prizes for all students when one student views their attempts
 
     return attempts;
   }
@@ -1098,8 +1288,8 @@ export class ExamAttemptService {
     // After manual grading, check if all results are ready and award prizes
     // This ensures prizes are awarded after teacher finishes grading all open-ended questions
     const examId = attempt.examId;
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const examDetails = await this.prisma.exam.findUnique({
       where: { id: examId },
@@ -1108,10 +1298,10 @@ export class ExamAttemptService {
       },
     });
 
-    // Only award prizes if exam has been published for 3+ days
+    // Only award prizes if exam has been published for 1+ hour
     if (examDetails?.publishedAt) {
       const publishDate = new Date(examDetails.publishedAt);
-      if (publishDate <= threeDaysAgo) {
+      if (publishDate <= oneHourAgo) {
         console.log(
           `[PRIZE] Manual grading completed for exam ${examId}. Checking if prizes should be awarded.`,
         );
@@ -1126,5 +1316,46 @@ export class ExamAttemptService {
       isCorrect,
       totalScore: earnedScore,
     };
+  }
+
+  private async splitPayment(
+    paymentId: string,
+    amount: number,
+    teacherId: string,
+  ) {
+    // Split 50/50 between teacher and admin
+    const teacherAmount = amount / 2;
+    const adminAmount = amount / 2;
+
+    // Get admin user
+    const admin = await this.prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+    });
+
+    // Create payment splits
+    await this.prisma.paymentSplit.createMany({
+      data: [
+        {
+          paymentId,
+          teacherId: teacherId,
+          amount: teacherAmount,
+        },
+        {
+          paymentId,
+          adminId: admin?.id || null,
+          amount: adminAmount,
+        },
+      ],
+    });
+
+    // Update teacher balance
+    await this.prisma.user.update({
+      where: { id: teacherId },
+      data: {
+        teacherBalance: {
+          increment: teacherAmount,
+        },
+      },
+    });
   }
 }

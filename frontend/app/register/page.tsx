@@ -11,15 +11,13 @@ import { UserRole } from "@/lib/types";
 import TeacherMultiSelect from "@/components/TeacherMultiSelect";
 import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 import { ERROR_MESSAGES, VALIDATION_MESSAGES } from "@/lib/constants/messages";
+import Image from "next/image";
 
 const registerSchema = z.object({
   email: z.string().email(ERROR_MESSAGES.INVALID_EMAIL),
   phone: z
     .string()
-    .regex(
-      /^\+?[1-9]\d{1,14}$/,
-      ERROR_MESSAGES.INVALID_PHONE
-    )
+    .regex(/^\+?[1-9]\d{1,14}$/, ERROR_MESSAGES.INVALID_PHONE)
     .optional()
     .or(z.literal("")),
   password: z.string().min(6, ERROR_MESSAGES.PASSWORD_MIN_LENGTH),
@@ -67,7 +65,10 @@ export default function RegisterPage() {
         teacherIds:
           data.role === UserRole.STUDENT ? selectedTeachers : undefined,
       };
-      const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, registerData);
+      const response = await api.post(
+        API_ENDPOINTS.AUTH.REGISTER,
+        registerData
+      );
       setToken(response.data.token);
       setUser(response.data.user);
       // Save to localStorage and cookies
@@ -82,9 +83,7 @@ export default function RegisterPage() {
       }
       router.push(ROUTES.DASHBOARD);
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || ERROR_MESSAGES.GENERIC
-      );
+      setError(err.response?.data?.message || ERROR_MESSAGES.GENERIC);
     } finally {
       setLoading(false);
     }
@@ -95,8 +94,14 @@ export default function RegisterPage() {
       <div className="max-w-md w-full">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-gray-200">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mb-4">
-              <span className="text-white text-2xl font-bold">O</span>
+            <div className="inline-flex items-center justify-center  bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mb-4">
+              <Image
+                src="/download.png"
+                alt="Online İmtahan Logo"
+                width={80}
+                height={80}
+                className="w-full h-full object-contain"
+              />
             </div>
             <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
               Yeni hesab yaradın

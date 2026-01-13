@@ -10,6 +10,7 @@ import { formatTimeDuration } from "@/lib/utils";
 import { API_ENDPOINTS, ROUTES } from "@/lib/constants/routes";
 import TimerSection from "@/components/exam/TimerSection";
 import ReadingTextSection from "@/components/exam/ReadingTextSection";
+import { revalidateExamsAction } from "@/lib/actions/exams";
 
 // Question Component
 function QuestionComponent({
@@ -59,38 +60,46 @@ function QuestionComponent({
           )}
         </div>
 
-        {question.type === QuestionType.MULTIPLE_CHOICE && question.options && (
-          <div className="space-y-3 mt-4">
-            {question.options
-              .sort((a, b) => a.order - b.order)
-              .map((option, optIndex) => (
-                <label
-                  key={option.id}
-                  className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                    answers[question.id] === option.id
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={`question-${question.id}`}
-                    value={option.id}
-                    checked={answers[question.id] === option.id}
-                    onChange={(e) =>
-                      handleAnswerChange(question.id, e.target.value)
-                    }
-                    className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="ml-4 text-gray-900 flex-1">
-                    {String.fromCharCode(65 + optIndex)}. {option.content}
-                  </span>
-                </label>
-              ))}
-          </div>
-        )}
+        {/* Multiple Choice Options - for MULTIPLE_CHOICE or READING_COMPREHENSION with options */}
+        {(question.type === QuestionType.MULTIPLE_CHOICE ||
+          (question.type === QuestionType.READING_COMPREHENSION &&
+            question.options &&
+            question.options.length > 0)) &&
+          question.options && (
+            <div className="space-y-3 mt-4">
+              {question.options
+                .sort((a, b) => a.order - b.order)
+                .map((option, optIndex) => (
+                  <label
+                    key={option.id}
+                    className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      answers[question.id] === option.id
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${question.id}`}
+                      value={option.id}
+                      checked={answers[question.id] === option.id}
+                      onChange={(e) =>
+                        handleAnswerChange(question.id, e.target.value)
+                      }
+                      className="w-5 h-5 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="ml-4 text-gray-900 flex-1 font-medium">
+                      {String.fromCharCode(65 + optIndex)}. {option.content}
+                    </span>
+                  </label>
+                ))}
+            </div>
+          )}
 
-        {question.type === QuestionType.OPEN_ENDED && (
+        {/* Open Ended - for OPEN_ENDED or READING_COMPREHENSION without options */}
+        {(question.type === QuestionType.OPEN_ENDED ||
+          (question.type === QuestionType.READING_COMPREHENSION &&
+            (!question.options || question.options.length === 0))) && (
           <div className="mt-4">
             <textarea
               value={answers[question.id] || ""}
@@ -129,15 +138,11 @@ export default function TakeExamPage() {
     }
 
     fetchAttempt();
-    setupTabChangeDetection();
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
-      // Cleanup tab change detection
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, attemptId]);
@@ -237,42 +242,11 @@ export default function TakeExamPage() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    showAlert({
-      message:
-        "İmtahan müddəti bitdi! Cavablar avtomatik olaraq yadda saxlanılacaq.",
-      type: "warning",
-      confirmButtonText: "Tamam",
-    });
-    setTimeout(async () => {
-      await handleSubmit(true); // Skip confirm for time expiration
-    }, 1500);
-  };
 
-  const handleVisibilityChange = () => {
-    if (document.hidden) {
-      setTabChangeCount((prev) => {
-        const newCount = prev + 1;
-        // Tab dəyişib - xəbərdarlıq göstər
-        if (newCount >= 3) {
-          showAlert({
-            message:
-              "XƏBƏRDARLIQ: Tab dəyişdirmək qadağandır! 3 dəfədən çox tab dəyişdirsəniz, imtahan avtomatik olaraq bitiriləcək.",
-            type: "warning",
-            confirmButtonText: "Başa düşdüm",
-          });
-        }
-        return newCount;
-      });
-    }
-  };
-
-  const handleBlur = () => {
-    setTabChangeCount((prev) => prev + 1);
-  };
-
-  const setupTabChangeDetection = () => {
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
+    await handleSubmit(
+      false,
+      "İmtahan müddəti bitdi! Cavablar avtomatik olaraq yadda saxlanılacaq."
+    );
   };
 
   const handleAnswerChange = async (questionId: string, value: string) => {
@@ -345,10 +319,14 @@ export default function TakeExamPage() {
     return { grouped, ungrouped };
   };
 
-  const handleSubmit = async (skipConfirm: boolean = false) => {
+  const handleSubmit = async (
+    skipConfirm: boolean = false,
+    message?: string
+  ) => {
     if (!skipConfirm) {
       const confirmed = await showConfirm({
         message:
+          message ||
           "İmtahanı bitirmək istədiyinizə əminsiniz? Dəyişiklik edə bilməyəcəksiniz.",
         type: "warning",
         confirmButtonText: "Bəli, bitir",
@@ -372,6 +350,8 @@ export default function TakeExamPage() {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      // Revalidate exams cache after submission
+      await revalidateExamsAction();
       router.push(ROUTES.EXAM_RESULT(attemptId));
     } catch (err: any) {
       console.error("Error submitting exam:", err);

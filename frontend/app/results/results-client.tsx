@@ -46,22 +46,20 @@ interface LeaderboardData {
 interface ResultsClientProps {
   initialAttempts: ExamAttemptWithExam[];
   initialUser: any;
+  initialLeaderboards?: Record<string, LeaderboardData>;
 }
 
 export default function ResultsClient({
   initialAttempts,
   initialUser,
+  initialLeaderboards = {},
 }: ResultsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
   const [attempts] = useState<ExamAttemptWithExam[]>(initialAttempts);
-  const [leaderboards, setLeaderboards] = useState<
-    Record<string, LeaderboardData>
-  >({});
-  const [loadingLeaderboards, setLoadingLeaderboards] = useState<
-    Record<string, boolean>
-  >({});
+  const [leaderboards] =
+    useState<Record<string, LeaderboardData>>(initialLeaderboards);
   const [expandedExams, setExpandedExams] = useState<Record<string, boolean>>(
     {}
   );
@@ -71,43 +69,10 @@ export default function ResultsClient({
     if (initialUser) {
       setUser(initialUser);
     }
-
-    // Refresh user data to get updated balance (prizes may have been awarded)
-    const refreshUser = async () => {
-      try {
-        const userResponse = await api.get("/auth/me");
-        setUser(userResponse.data);
-      } catch (err) {
-        console.error("Error refreshing user data:", err);
-      }
-    };
-
-    refreshUser();
-
-    // Fetch leaderboards for each unique exam
-    const uniqueExamIds = Array.from(
-      new Set(attempts.map((a) => a.examId))
-    ) as string[];
-
-    uniqueExamIds.forEach((examId) => {
-      fetchLeaderboard(examId);
-    });
-  }, [initialUser, setUser, attempts]);
-
-  const fetchLeaderboard = async (examId: string) => {
-    try {
-      setLoadingLeaderboards((prev) => ({ ...prev, [examId]: true }));
-      const response = await api.get(`/exams/${examId}/leaderboard`);
-      setLeaderboards((prev) => ({
-        ...prev,
-        [examId]: response.data,
-      }));
-    } catch (err: any) {
-      console.error("Error fetching leaderboard:", err);
-    } finally {
-      setLoadingLeaderboards((prev) => ({ ...prev, [examId]: false }));
-    }
-  };
+    // Debug: log attempts to see what we're receiving
+    console.log("ResultsClient - initialAttempts:", initialAttempts);
+    console.log("ResultsClient - initialLeaderboards:", initialLeaderboards);
+  }, [initialUser, setUser, initialAttempts, initialLeaderboards]);
 
   const toggleExam = (examId: string) => {
     setExpandedExams((prev) => ({
@@ -134,7 +99,9 @@ export default function ResultsClient({
             aria-label="İdarə panelinə qayıt"
             className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-900 mb-4 font-semibold text-lg transition-colors duration-200 hover:gap-3"
           >
-            <span className="text-xl" aria-hidden="true">←</span>
+            <span className="text-xl" aria-hidden="true">
+              ←
+            </span>
             <span>İdarə panelinə qayıt</span>
           </Link>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Nəticələr</h1>
@@ -148,6 +115,10 @@ export default function ResultsClient({
             <p className="text-gray-500 text-lg mb-4">Hələ nəticə yoxdur</p>
             <Link
               href="/exams"
+              onClick={(e) => {
+                // Force refresh when navigating to exams page
+                router.refresh();
+              }}
               aria-label="Mövcud imtahanları görüntülə"
               className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-6 rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
             >
@@ -159,7 +130,6 @@ export default function ResultsClient({
             {Array.from(examsMap.entries()).map(([examId, examAttempts]) => {
               const exam = examAttempts[0]?.exam;
               const leaderboard = leaderboards[examId];
-              const isLoading = loadingLeaderboards[examId];
               const isExpanded = expandedExams[examId];
 
               const latestAttempt = examAttempts.sort(
@@ -171,8 +141,11 @@ export default function ResultsClient({
               const percentage =
                 latestAttempt.totalScore && latestAttempt.totalScore > 0
                   ? parseFloat(
-                      (((latestAttempt.score || 0) / latestAttempt.totalScore) *
-                        100).toFixed(2)
+                      (
+                        ((latestAttempt.score || 0) /
+                          latestAttempt.totalScore) *
+                        100
+                      ).toFixed(2)
                     )
                   : 0;
 
@@ -191,20 +164,37 @@ export default function ResultsClient({
                           {exam?.title || "Naməlum imtahan"}
                         </h2>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span><span role="img" aria-label="Kitab">📚</span> {exam?.subject}</span>
-                          <span><span role="img" aria-label="Statistika">📊</span> {exam?.level}</span>
+                          <span>
+                            <span role="img" aria-label="Kitab">
+                              📚
+                            </span>{" "}
+                            {exam?.subject}
+                          </span>
+                          <span>
+                            <span role="img" aria-label="Statistika">
+                              📊
+                            </span>{" "}
+                            {exam?.level}
+                          </span>
                           {latestAttempt.score !== null &&
                             latestAttempt.totalScore !== null && (
                               <>
                                 <span>
-                                  <span role="img" aria-label="Ulduz">⭐</span> Bal: {latestAttempt.score} /{" "}
-                                  {latestAttempt.totalScore} ({percentage.toFixed(2)}%)
+                                  <span role="img" aria-label="Ulduz">
+                                    ⭐
+                                  </span>{" "}
+                                  Bal: {latestAttempt.score} /{" "}
+                                  {latestAttempt.totalScore} (
+                                  {percentage.toFixed(2)}%)
                                 </span>
                               </>
                             )}
                           {leaderboard && leaderboard.currentUserPosition && (
                             <span className="font-semibold text-indigo-600">
-                              <span role="img" aria-label="Statistika">📊</span> Yeriniz: {leaderboard.currentUserPosition} /{" "}
+                              <span role="img" aria-label="Statistika">
+                                📊
+                              </span>{" "}
+                              Yeriniz: {leaderboard.currentUserPosition} /{" "}
                               {leaderboard.totalParticipants}
                             </span>
                           )}
@@ -235,12 +225,7 @@ export default function ResultsClient({
 
                   {isExpanded && (
                     <div className="border-t border-gray-200 p-6 bg-gray-50">
-                      {isLoading ? (
-                        <div className="text-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                          <p className="mt-2 text-gray-600">Yüklənir...</p>
-                        </div>
-                      ) : leaderboard && leaderboard.leaderboard.length > 0 ? (
+                      {leaderboard && leaderboard.leaderboard.length > 0 ? (
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">
                             Liderlər Cədvəli ({leaderboard.totalParticipants}{" "}
@@ -281,7 +266,16 @@ export default function ResultsClient({
                                       <div className="flex items-center">
                                         {index < 3 ? (
                                           <span className="text-2xl">
-                                            <span role="img" aria-label={`${index === 0 ? "Birinci" : index === 1 ? "İkinci" : "Üçüncü"} yer medalı`}>
+                                            <span
+                                              role="img"
+                                              aria-label={`${
+                                                index === 0
+                                                  ? "Birinci"
+                                                  : index === 1
+                                                  ? "İkinci"
+                                                  : "Üçüncü"
+                                              } yer medalı`}
+                                            >
                                               {index === 0
                                                 ? "🥇"
                                                 : index === 1
@@ -323,7 +317,9 @@ export default function ResultsClient({
                                             +{entry.prizeAmount} AZN
                                           </span>
                                           <span className="text-xs text-gray-500">
-                                            <span role="img" aria-label="Pul">💰</span>
+                                            <span role="img" aria-label="Pul">
+                                              💰
+                                            </span>
                                           </span>
                                         </div>
                                       ) : (

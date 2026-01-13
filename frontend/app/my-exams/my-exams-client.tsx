@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { formatDate, formatTime } from "@/lib/utils";
+import Navigation from "@/components/Navigation";
 
 interface ExamAttemptWithExam {
   id: string;
@@ -74,37 +75,11 @@ export default function MyExamsClient({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <nav className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center space-x-3">
-              <Link href="/dashboard" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">O</span>
-                </div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Online İmtahan
-                </h1>
-              </Link>
-            </div>
-            <div className="flex items-center space-x-6">
-              {initialUser && (
-                <div className="text-right">
-                  <p className="text-gray-900 font-semibold">
-                    {initialUser.firstName} {initialUser.lastName}
-                  </p>
-                </div>
-              )}
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-              >
-                İdarə paneli
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation 
+        user={initialUser} 
+        showProfileLink={false}
+        showDashboardLink={true}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">

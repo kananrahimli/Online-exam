@@ -758,7 +758,16 @@ export class ExamAttemptService {
       let awardedCount = 0;
 
       // Check and award prizes for each exam
+      // Optimize: Only check exams where student hasn't received a prize yet
       for (const examId of examIds) {
+        // Skip if student already received a prize for this exam (from existingPrizeMap)
+        if (existingPrizeMap.has(examId)) {
+          console.log(
+            `[PRIZE] Student ${studentId} already received prize for exam ${examId}. Skipping.`,
+          );
+          continue;
+        }
+
         const attempt = completedAttempts.find((a) => a.examId === examId);
         const exam = attempt?.exam;
 
@@ -774,9 +783,8 @@ export class ExamAttemptService {
         if (publishDate <= oneHourAgo) {
           checkedCount++;
 
-          // Check if this student already received a prize for this exam
-          // Each student should be checked independently - one student's prize
-          // should not prevent checking prizes for other students
+          // Double-check if this student already received a prize for this exam
+          // (in case prize was awarded between the initial query and now)
           const existingPrize = await this.prisma.payment.findFirst({
             where: {
               studentId,
@@ -798,7 +806,7 @@ export class ExamAttemptService {
             awardedCount++;
           } else {
             console.log(
-              `[PRIZE] Student ${studentId} already received prize for exam ${examId}. Skipping.`,
+              `[PRIZE] Student ${studentId} already received prize for exam ${examId} (double-check). Skipping.`,
             );
           }
         }

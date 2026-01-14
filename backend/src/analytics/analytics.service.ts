@@ -183,22 +183,75 @@ export class AnalyticsService {
       currentPosition += tiedAttempts.length;
     }
 
-    // Get exam with readingTexts
-    const examWithReadingTexts = await this.prisma.exam.findUnique({
+    // Get exam with all questions (topics and regular questions) and readingTexts
+    const examWithAllQuestions = await this.prisma.exam.findUnique({
       where: { id: examId },
-      select: {
-        readingTexts: {
-          select: {
-            id: true,
-            content: true,
-            order: true,
+      include: {
+        topics: {
+          include: {
+            questions: {
+              include: {
+                options: {
+                  orderBy: {
+                    order: 'asc',
+                  },
+                },
+                readingText: true,
+              },
+              orderBy: {
+                order: 'asc',
+              },
+            },
           },
+          orderBy: {
+            order: 'asc',
+          },
+        },
+        questions: {
+          include: {
+            options: {
+              orderBy: {
+                order: 'asc',
+              },
+            },
+            readingText: true,
+          },
+          orderBy: {
+            order: 'asc',
+          },
+        },
+        readingTexts: {
           orderBy: {
             order: 'asc',
           },
         },
       },
     });
+
+    // Combine all questions from topics and regular questions
+    const allQuestions: any[] = [];
+    if (examWithAllQuestions?.topics) {
+      examWithAllQuestions.topics.forEach((topic) => {
+        if (topic.questions) {
+          allQuestions.push(...topic.questions);
+        }
+      });
+    }
+    if (examWithAllQuestions?.questions) {
+      allQuestions.push(...examWithAllQuestions.questions);
+    }
+
+    // Map readingTextId to readingText object for all questions
+    if (examWithAllQuestions?.readingTexts) {
+      const readingTextsMap = new Map(
+        examWithAllQuestions.readingTexts.map((rt) => [rt.id, rt]),
+      );
+      allQuestions.forEach((q: any) => {
+        if (q.readingTextId && !q.readingText) {
+          q.readingText = readingTextsMap.get(q.readingTextId) || null;
+        }
+      });
+    }
 
     return {
       examId,
@@ -210,7 +263,7 @@ export class AnalyticsService {
       completionRate:
         totalAttempts > 0 ? completedAttemptsCount / totalAttempts : 0,
       exam: {
-        readingTexts: examWithReadingTexts?.readingTexts || [],
+        readingTexts: examWithAllQuestions?.readingTexts || [],
       },
       attempts: attempts
         .map((attempt) => {
@@ -218,6 +271,80 @@ export class AnalyticsService {
             position: 0,
             prizeAmount: 0,
           };
+
+          // Create a map of answered question IDs for quick lookup
+          const answeredQuestionIds = new Set(
+            attempt.answers.map((a) => a.questionId),
+          );
+
+          // Combine answered questions with unanswered questions
+          const allAnswers = allQuestions.map((question) => {
+            const answer = attempt.answers.find(
+              (a) => a.questionId === question.id,
+            );
+
+            // Check if answer exists and has actual content (not just empty)
+            const hasAnswer =
+              answer &&
+              answer.question &&
+              (answer.optionId !== null ||
+                (answer.content !== null && answer.content.trim() !== ''));
+
+            if (hasAnswer) {
+              // Question has been answered
+              let readingText = answer.question.readingText;
+              if (
+                !readingText &&
+                answer.question.readingTextId &&
+                examWithAllQuestions?.readingTexts
+              ) {
+                readingText = examWithAllQuestions.readingTexts.find(
+                  (rt) => rt.id === answer.question.readingTextId,
+                ) || null;
+              }
+
+              return {
+                id: answer.id,
+                questionId: answer.questionId,
+                questionType: answer.question.type,
+                questionContent: answer.question.content,
+                questionPoints: answer.question.points,
+                modelAnswer: answer.question.modelAnswer,
+                correctAnswer: answer.question.correctAnswer,
+                questionOptions: answer.question.options || [],
+                readingTextId: answer.question.readingTextId,
+                readingText: readingText,
+                optionId: answer.optionId,
+                content: answer.content,
+                isCorrect: answer.isCorrect,
+                points: answer.points,
+                option: answer.option,
+                isAnswered: true,
+              };
+            } else {
+              // Question has not been answered
+              // Use question data from allQuestions, not from answer
+              return {
+                id: null,
+                questionId: question.id,
+                questionType: question.type,
+                questionContent: question.content,
+                questionPoints: question.points,
+                modelAnswer: question.modelAnswer,
+                correctAnswer: question.correctAnswer,
+                questionOptions: question.options || [],
+                readingTextId: question.readingTextId,
+                readingText: question.readingText || null,
+                optionId: null,
+                content: null,
+                isCorrect: null,
+                points: 0,
+                option: null,
+                isAnswered: false,
+              };
+            }
+          });
+
           return {
             id: attempt.id,
             student: attempt.student,
@@ -234,38 +361,7 @@ export class AnalyticsService {
                 : null,
             position: positionInfo.position,
             prizeAmount: positionInfo.prizeAmount,
-            answers: attempt.answers.map((answer) => {
-              // Ensure readingText is mapped even if it wasn't included in the relation
-              let readingText = answer.question.readingText;
-              if (
-                !readingText &&
-                answer.question.readingTextId &&
-                examWithReadingTexts?.readingTexts
-              ) {
-                readingText =
-                  examWithReadingTexts.readingTexts.find(
-                    (rt) => rt.id === answer.question.readingTextId,
-                  ) || null;
-              }
-
-              return {
-                id: answer.id,
-                questionId: answer.questionId,
-                questionType: answer.question.type,
-                questionContent: answer.question.content,
-                questionPoints: answer.question.points,
-                modelAnswer: answer.question.modelAnswer,
-                correctAnswer: answer.question.correctAnswer, // Add correct answer
-                questionOptions: answer.question.options || [], // Add all options
-                readingTextId: answer.question.readingTextId,
-                readingText: readingText, // Already mapped
-                optionId: answer.optionId,
-                content: answer.content,
-                isCorrect: answer.isCorrect,
-                points: answer.points,
-                option: answer.option,
-              };
-            }),
+            answers: allAnswers,
           };
         })
         .sort((a, b) => {

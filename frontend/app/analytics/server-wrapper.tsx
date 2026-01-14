@@ -46,7 +46,7 @@ interface ExamDetail {
     position: number;
     prizeAmount: number;
     answers?: Array<{
-      id: string;
+      id: string | null;
       questionId: string;
       questionType: string;
       questionContent: string;
@@ -66,12 +66,13 @@ interface ExamDetail {
       }>;
       optionId: string | null;
       content: string | null;
-      isCorrect: boolean;
+      isCorrect: boolean | null;
       points: number;
       option: {
         id: string;
         content: string;
       } | null;
+      isAnswered: boolean;
     }>;
   }>;
 }

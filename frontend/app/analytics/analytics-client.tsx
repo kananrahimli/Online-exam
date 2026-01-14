@@ -55,7 +55,7 @@ interface ExamDetail {
     position: number;
     prizeAmount: number;
     answers?: Array<{
-      id: string;
+      id: string | null;
       questionId: string;
       questionType: string;
       questionContent: string;
@@ -75,12 +75,13 @@ interface ExamDetail {
       }>;
       optionId: string | null;
       content: string | null;
-      isCorrect: boolean;
+      isCorrect: boolean | null;
       points: number;
       option: {
         id: string;
         content: string;
       } | null;
+      isAnswered: boolean;
     }>;
   }>;
 }
@@ -404,10 +405,12 @@ export default function AnalyticsClient({
                       }
 
                       result.push(
-                        <div key={answer.id} className="space-y-2">
+                        <div key={answer.questionId || answer.id} className="space-y-2">
                           <div
                             className={`rounded-lg p-4 border-2 ${
-                              answer.isCorrect
+                              !answer.isAnswered
+                                ? "bg-yellow-50 border-yellow-200"
+                                : answer.isCorrect
                                 ? "bg-green-50 border-green-200"
                                 : "bg-red-50 border-red-200"
                             }`}
@@ -423,15 +426,21 @@ export default function AnalyticsClient({
                                       📖 Mətn əsaslı
                                     </span>
                                   )}
-                                  <span
-                                    className={`text-xs font-medium px-2 py-1 rounded ${
-                                      answer.isCorrect
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-red-100 text-red-700"
-                                    }`}
-                                  >
-                                    {answer.isCorrect ? "✓ Düzgün" : "✗ Səhv"}
-                                  </span>
+                                  {!answer.isAnswered ? (
+                                    <span className="text-xs font-medium px-2 py-1 rounded bg-yellow-100 text-yellow-700">
+                                      ⚠ Cavablandırılmamış
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`text-xs font-medium px-2 py-1 rounded ${
+                                        answer.isCorrect
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-red-100 text-red-700"
+                                      }`}
+                                    >
+                                      {answer.isCorrect ? "✓ Düzgün" : "✗ Səhv"}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-sm font-medium text-gray-900 mb-1">
                                   {answer.questionContent}
@@ -440,7 +449,97 @@ export default function AnalyticsClient({
                                   Maksimum bal: {answer.questionPoints}
                                 </p>
 
-                                {answer.questionType ===
+                                {!answer.isAnswered ? (
+                                  <div className="space-y-2">
+                                    <div>
+                                      <p className="text-xs font-medium text-yellow-700 mb-1">
+                                        Şagirdin cavabı:
+                                      </p>
+                                      <p className="text-sm text-yellow-800 bg-yellow-100 p-2 rounded border border-yellow-300 italic">
+                                        Cavablandırılmamış
+                                      </p>
+                                    </div>
+                                    {answer.questionType ===
+                                      QuestionType.MULTIPLE_CHOICE &&
+                                      answer.questionOptions &&
+                                      answer.questionOptions.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-700 mb-2">
+                                            Bütün variantlar:
+                                          </p>
+                                          <div className="space-y-2">
+                                            {answer.questionOptions.map(
+                                              (opt: any, optIndex: number) => {
+                                                let isCorrect = false;
+                                                if (answer.correctAnswer) {
+                                                  if (
+                                                    answer.correctAnswer
+                                                      .length > 15
+                                                  ) {
+                                                    isCorrect =
+                                                      answer.correctAnswer ===
+                                                      opt.id;
+                                                  } else {
+                                                    const correctIndex =
+                                                      parseInt(
+                                                        answer.correctAnswer,
+                                                        10
+                                                      );
+                                                    if (
+                                                      !isNaN(correctIndex) &&
+                                                      correctIndex === optIndex
+                                                    ) {
+                                                      isCorrect = true;
+                                                    }
+                                                  }
+                                                }
+
+                                                return (
+                                                  <div
+                                                    key={opt.id}
+                                                    className={`p-3 rounded-lg border-2 ${
+                                                      isCorrect
+                                                        ? "bg-blue-50 border-blue-300"
+                                                        : "bg-gray-50 border-gray-200"
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="font-semibold text-gray-900">
+                                                        {String.fromCharCode(
+                                                          65 + optIndex
+                                                        )}
+                                                        .
+                                                      </span>
+                                                      <span className="flex-1 text-gray-900">
+                                                        {opt.content}
+                                                      </span>
+                                                      {isCorrect && (
+                                                        <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700">
+                                                          ✓ Düzgün cavab
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    {answer.questionType ===
+                                      QuestionType.OPEN_ENDED &&
+                                      answer.modelAnswer && (
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-700 mb-1">
+                                            Nümunə cavab:
+                                          </p>
+                                          <p className="text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+                                            {answer.modelAnswer}
+                                          </p>
+                                        </div>
+                                      )}
+                                  </div>
+                                ) : answer.questionType ===
                                 QuestionType.OPEN_ENDED ? (
                                   <div className="space-y-2">
                                     <div>
@@ -546,22 +645,23 @@ export default function AnalyticsClient({
                                 )}
                               </div>
 
-                              {answer.questionType ===
-                                QuestionType.OPEN_ENDED && (
+                              {answer.isAnswered &&
+                                answer.questionType ===
+                                  QuestionType.OPEN_ENDED && (
                                 <div className="mt-3 flex items-center gap-2">
                                   <input
                                     type="number"
                                     min={0}
                                     max={answer.questionPoints}
                                     value={
-                                      gradingAnswers[answer.id] ??
+                                      gradingAnswers[answer.id || ""] ??
                                       answer.points ??
                                       0
                                     }
                                     onChange={(e) =>
                                       setGradingAnswers({
                                         ...gradingAnswers,
-                                        [answer.id]:
+                                        [answer.id || ""]:
                                           parseFloat(e.target.value) || 0,
                                       })
                                     }
@@ -572,6 +672,7 @@ export default function AnalyticsClient({
                                   </span>
                                   <button
                                     onClick={() =>
+                                      answer.id &&
                                       handleGradeAnswer(
                                         selectedStudentAttempt.id,
                                         answer.id,

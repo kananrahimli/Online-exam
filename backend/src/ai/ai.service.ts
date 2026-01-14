@@ -133,7 +133,7 @@ For High School/University (Ali/Universitet):
 
 MANDATORY TEXT REQUIREMENTS:
 - Text must be relevant to subject: ${subject}
-- Text must relate to topic: ${topic}
+${topic ? `- Text must relate to topic: ${topic}` : `- Text must cover topics appropriate for ${level} level in ${subject}`}
 - Text must match ${level} difficulty level
 - Use proper Azerbaijani grammar and vocabulary
 - Text should be interesting and educational
@@ -151,6 +151,11 @@ After creating the text, generate EXACTLY ${rcCount} questions:
       }
     }
 
+    // Determine topic description for prompt
+    const topicDescription = topic && topic.trim().length > 0
+      ? `Topic: ${topic} - Generate questions specifically from this topic`
+      : `NO SPECIFIC TOPIC PROVIDED - Generate questions from various topics within ${subject} that are appropriate for ${level} level students. Cover different important topics and concepts from the subject curriculum. IMPORTANT: Questions should be distributed across DIFFERENT topics with VARYING numbers of questions per topic (not equal distribution). Some topics may have 1-2 questions, others may have 3-4 questions, etc. This creates a more natural and comprehensive exam.`;
+
     const systemPrompt = `You are an expert exam creator specializing in ${subject} for ${level} level students.
 Your questions must follow Dövlət İmtahan Mərkəzi (DİM) standards - clear, unambiguous, academically rigorous.
 You must return your response as a valid JSON object.
@@ -159,7 +164,7 @@ You must return your response as a valid JSON object.
 You MUST generate EXACTLY ${questionCount} UNIQUE, NON-REPEATING questions following Bloom's Taxonomy levels.
 - Each question must be distinctly different in content, approach, and cognitive level
 - NO similar or duplicate questions
-- Cover different aspects of the topic with varied cognitive demands
+- Cover different aspects ${topic ? `of the topic` : `from the subject`} with varied cognitive demands
 - Verify uniqueness: each question tests different knowledge/skills at different levels
 
 BLOOM'S TAXONOMY LEVELS TO INCLUDE:
@@ -179,7 +184,7 @@ TOTAL: ${questionCount} questions
 MANDATORY REQUIREMENTS:
 1. ALL content (questions, options, answers, reading text) MUST be in Azerbaijani language
 2. Questions must match ${level} difficulty level
-3. Topic: ${topic}
+3. ${topicDescription}
 4. Subject: ${subject}
 5. Follow DİM (Dövlət İmtahan Mərkəzi) question format standards
 6. Each question must be UNIQUE - no repetition or similarity
@@ -192,7 +197,13 @@ MANDATORY REQUIREMENTS:
 UNIQUENESS REQUIREMENTS - CRITICAL:
 - NO TWO QUESTIONS should ask about the same concept in the same way
 - Vary question formats: definition, comparison, application, analysis, evaluation
-- Cover different subtopics within ${topic}
+${topic ? `- Cover different subtopics within ${topic}` : `- Cover different important topics from ${subject} curriculum for ${level} level
+- DISTRIBUTE questions across topics with VARYING numbers (NOT equal distribution):
+  * Some topics: 1-2 questions
+  * Other topics: 3-4 questions  
+  * Some topics: 5+ questions
+  * This creates natural, comprehensive coverage
+  * Do NOT make equal number of questions from each topic`}
 - Use different vocabulary and phrasing for each question
 - Test different cognitive skills (remember, understand, apply, analyze, evaluate, create)
 - If about grammar: cover different rules, different examples, different aspects
@@ -312,7 +323,7 @@ ${hasOpenEnded ? `✓ Last ${oeCount} questions have type: "OPEN_ENDED" with CON
 ✓ OPEN_ENDED: has CONCISE modelAnswer (1-2 sentences), NO options, NO correctAnswer
 ✓ Each option array has exactly 4 items with meaningful content
 ✓ correctAnswer is "0", "1", "2", or "3" (as string)
-✓ All questions are relevant to topic: ${topic}
+${topic ? `✓ All questions are relevant to topic: ${topic}` : `✓ All questions are relevant to ${subject} curriculum for ${level} level`}
 ✓ NO two questions are similar or duplicate
 ${!readingTextProvided && hasReading ? '✓ readingText field follows format guidelines (story/folk tale for young, article for advanced)' : ''}`;
     try {
@@ -330,6 +341,12 @@ CRITICAL REQUIREMENTS:
 - VERIFY that correctAnswer field points to the ACTUALLY correct option for each question
 - Each question must be distinctly different in content and cognitive level
 - Cover different Bloom's Taxonomy levels
+${!topic ? `- DISTRIBUTE questions across DIFFERENT topics with VARYING numbers per topic (NOT equal):
+  * Some topics: 1-2 questions
+  * Other topics: 3-4 questions
+  * Some topics: 5+ questions
+  * This creates natural, comprehensive coverage
+  * Do NOT make equal number of questions from each topic` : ''}
 - ${hasReading ? 'Reading questions must cover DIFFERENT aspects (main idea, detail, inference, vocabulary, sequence).' : ''}
 - ${!readingTextProvided && hasReading ? `Generate an appropriate reading text (story/folk tale for young students, article for advanced students) since none was provided.` : ''}
 - ${hasOpenEnded ? 'Make sure open-ended question answers are CONCISE (1-2 sentences only).' : 'DO NOT generate OPEN_ENDED questions - only generate MULTIPLE_CHOICE' + (hasReading ? ' and READING_COMPREHENSION' : '') + ' questions.'}
@@ -411,7 +428,7 @@ Return the response as a valid JSON object.`,
             const replacementQuestion = await this.generateSingleQuestion(
               subject,
               level,
-              topic,
+              topic || '',
               questionType,
               duplicateIndex + 1,
               existingQuestions,
@@ -479,7 +496,7 @@ Return the response as a valid JSON object.`,
             const additionalQuestion = await this.generateSingleQuestion(
               subject,
               level,
-              topic,
+              topic || '',
               typeToAdd,
               result.questions.length + i + 1,
               existingQuestions,
@@ -730,7 +747,7 @@ Return the response as a valid JSON object.`,
             const replacementQuestion = await this.generateSingleQuestion(
               subject,
               level,
-              topic,
+              topic || '',
               questionType,
               duplicateIndex + 1,
               existingFinalQuestions,
@@ -844,7 +861,7 @@ Return the response as a valid JSON object.`,
 
 Subject: ${subject}
 Level: ${level}
-Topic: ${topic}
+${topic ? `Topic: ${topic}` : `No specific topic - generate from ${subject} curriculum for ${level} level`}
 
 CRITICAL: This question must be UNIQUE and completely different from these existing questions:
 ${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
@@ -852,7 +869,7 @@ ${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 UNIQUENESS REQUIREMENTS:
 - Must test different knowledge/concept than existing questions
 - Use different vocabulary and phrasing
-- Cover different aspect of the topic
+${topic ? `- Cover different aspect of the topic` : `- Cover different topics from ${subject} curriculum for ${level} level`}
 - Apply different Bloom's Taxonomy level
 - NO similarity to existing questions
 

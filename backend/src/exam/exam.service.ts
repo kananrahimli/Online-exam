@@ -320,14 +320,14 @@ export class ExamService {
   }
 
   async findPublished(studentId?: string) {
-    // Only show exams published less than 1 hour ago
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    // Only show exams published less than 10 minutes ago
+    const tenMinutesAgo = new Date();
+    tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
 
     const where: any = {
       status: ExamStatus.PUBLISHED,
       publishedAt: {
-        gte: oneHourAgo, // Only show exams published in the last 1 hour
+        gte: tenMinutesAgo, // Only show exams published in the last 10 minutes
       },
     };
 
@@ -444,11 +444,8 @@ export class ExamService {
       throw new NotFoundException('İmtahan tapılmadı');
     }
 
-    // Check and award prizes if exam is no longer active (1 hour passed)
-    // This ensures prizes are awarded even if exam is removed from published list
-    if (exam.publishedAt) {
-      await this.examAttemptService.checkAndAwardPrizes(exam.id);
-    }
+    // Prize yoxlanması yalnız login olmuş şagird üçün aparılacaq (checkAndAwardPrizesForStudent funksiyasından)
+    // Burada prize yoxlanması aparılmır
 
     // Hide correct answers if user is a student
     if (user.role === 'STUDENT') {

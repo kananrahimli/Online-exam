@@ -17,8 +17,9 @@ export class GenerateExamDto {
   @IsString()
   level: string;
 
+  @IsOptional()
   @IsString()
-  topic: string;
+  topic?: string;
 
   @IsNumber()
   @Min(1)

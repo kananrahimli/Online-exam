@@ -14,7 +14,7 @@ const aiGenerateSchema = z
   .object({
     subject: z.string().min(2, "Fənn adı lazımdır"),
     level: z.string().min(1, "Sinif lazımdır"),
-    topic: z.string().min(2, "Mövzu lazımdır"),
+    topic: z.string().optional(),
     questionCount: z
       .number({
         required_error: "Sual sayı lazımdır",
@@ -109,10 +109,13 @@ export default function AIGenerateExamPage() {
 
       // Format response to match manual exam creation format
       // Backend now returns readingTexts array instead of readingText string
+      const topicDescription = data.topic 
+        ? `${data.topic} mövzusu` 
+        : "müxtəlif mövzulardan";
       const formattedExam = {
         ...response.data,
         title: data.title,
-        description: `${data.subject} - Sinif ${data.level} səviyyəsi, ${data.topic} mövzusu`,
+        description: `${data.subject} - Sinif ${data.level} səviyyəsi, ${topicDescription}`,
         duration: data.duration,
         // Extract readingText from readingTexts array for display
         readingText:
@@ -610,18 +613,22 @@ export default function AIGenerateExamPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Mövzular *
+                  Mövzular (İstəyə bağlı)
                 </label>
-                <input
+                <textarea
                   {...register("topic")}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900"
-                  placeholder="Məs: Tənliklər, funksiyalar"
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-900 resize-y"
+                  placeholder="Məs: Tənliklər, funksiyalar (boş buraxsanız, AI sinif səviyyəsinə uyğun fəndən müxtəlif mövzulardan suallar yaradacaq)"
                 />
                 {errors.topic && (
                   <p className="mt-1 text-sm text-red-600">
                     {errors.topic.message}
                   </p>
                 )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Mövzu daxil etməsəniz, AI sinif səviyyəsinə uyğun fəndən müxtəlif mövzulardan suallar generasiya edəcək
+                </p>
               </div>
 
               <div>

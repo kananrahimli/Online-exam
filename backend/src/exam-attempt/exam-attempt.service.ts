@@ -636,10 +636,8 @@ export class ExamAttemptService {
       },
     });
 
-    // Award prizes to top 3 students (after exam is removed from published list - 1 hour after publish)
-    // We'll check when to award prizes - if exam was published 1+ hour ago, award immediately
-    // Otherwise, schedule for when exam is removed from published list
-    await this.checkAndAwardPrizes(attempt.examId);
+    // Prize yoxlanması yalnız login olmuş şagird üçün aparılacaq (checkAndAwardPrizesForStudent funksiyasından)
+    // Burada prize yoxlanması aparılmır
 
     return updatedAttempt;
   }
@@ -664,15 +662,15 @@ export class ExamAttemptService {
       return;
     }
 
-    // Check if 1 hour has passed since publish date (exam is removed from published list)
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    // Check if 10 minutes have passed since publish date (exam is removed from published list)
+    const tenMinutesAgo = new Date();
+    tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
 
     const publishDate = new Date(exam.publishedAt);
-    const shouldAwardPrizes = publishDate <= oneHourAgo;
+    const shouldAwardPrizes = publishDate <= tenMinutesAgo;
 
     console.log(
-      `[PRIZE] Exam ${examId} - Published: ${publishDate}, OneHourAgo: ${oneHourAgo}, ShouldAward: ${shouldAwardPrizes}`,
+      `[PRIZE] Exam ${examId} - Published: ${publishDate}, TenMinutesAgo: ${tenMinutesAgo}, ShouldAward: ${shouldAwardPrizes}`,
     );
 
     if (shouldAwardPrizes) {
@@ -684,8 +682,8 @@ export class ExamAttemptService {
         `[PRIZE] Exam ${examId} is still active, prizes will be awarded later`,
       );
     }
-    // If exam is still in published list (< 1 hour), prizes will be awarded later
-    // This will be handled when the next submission happens after 1 hour passes
+    // If exam is still in published list (< 10 minutes), prizes will be awarded later
+    // This will be handled when the next submission happens after 10 minutes pass
   }
 
   /**
@@ -775,12 +773,33 @@ export class ExamAttemptService {
           continue;
         }
 
-        // Check if 1 hour has passed since publish date
-        const oneHourAgo = new Date();
-        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+        // Check if 10 minutes have passed since publish date
+        const tenMinutesAgo = new Date();
+        tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
         const publishDate = new Date(exam.publishedAt);
 
-        if (publishDate <= oneHourAgo) {
+        if (publishDate <= tenMinutesAgo) {
+          // Check if prizes have already been awarded for this exam (top 3 students already received prizes)
+          const examPrizePayments = await this.prisma.payment.findMany({
+            where: {
+              examId,
+              transactionId: {
+                startsWith: 'PRIZE-',
+              },
+            },
+            select: {
+              studentId: true,
+            },
+          });
+
+          // If there are already 3 or more prize payments, prizes have been awarded for this exam
+          if (examPrizePayments.length >= 3) {
+            console.log(
+              `[PRIZE] Prizes already awarded for exam ${examId} (${examPrizePayments.length} prizes found). Skipping.`,
+            );
+            continue;
+          }
+
           checkedCount++;
 
           // Double-check if this student already received a prize for this exam
@@ -874,6 +893,27 @@ export class ExamAttemptService {
 
   private async awardPrizes(examId: string) {
     console.log(`[PRIZE] awardPrizes called for examId: ${examId}`);
+
+    // Check if prizes have already been awarded for this exam (top 3 students already received prizes)
+    const existingPrizePayments = await this.prisma.payment.findMany({
+      where: {
+        examId,
+        transactionId: {
+          startsWith: 'PRIZE-',
+        },
+      },
+      select: {
+        studentId: true,
+      },
+    });
+
+    // If there are already 3 or more prize payments, prizes have been awarded
+    if (existingPrizePayments.length >= 3) {
+      console.log(
+        `[PRIZE] Prizes already awarded for exam ${examId} (${existingPrizePayments.length} prizes found). Skipping.`,
+      );
+      return;
+    }
 
     // Get exam details to check for open-ended questions
     const exam = await this.prisma.exam.findUnique({
@@ -1117,8 +1157,8 @@ export class ExamAttemptService {
       throw new BadRequestException('İmtahan hələ təqdim olunmayıb');
     }
 
-    // Check and award prizes if exam is no longer active (1 hour passed)
-    await this.checkAndAwardPrizes(attempt.examId);
+    // Prize yoxlanması yalnız login olmuş şagird üçün aparılacaq (checkAndAwardPrizesForStudent funksiyasından)
+    // Burada prize yoxlanması aparılmır
 
     // Combine all questions (from topics and regular questions) and map readingText
     const allQuestions = [];
@@ -1298,17 +1338,9 @@ export class ExamAttemptService {
       },
     });
 
-    // Only award prizes if exam has been published for 1+ hour
-    if (examDetails?.publishedAt) {
-      const publishDate = new Date(examDetails.publishedAt);
-      if (publishDate <= oneHourAgo) {
-        console.log(
-          `[PRIZE] Manual grading completed for exam ${examId}. Checking if prizes should be awarded.`,
-        );
-        // Check and award prizes after manual grading
-        await this.checkAndAwardPrizes(examId);
-      }
-    }
+    // Prize yoxlanması yalnız login olmuş şagird üçün aparılacaq (checkAndAwardPrizesForStudent funksiyasından)
+    // Manual grading-dən sonra prize yoxlanması aparılmır
+    // Şagird login olduqda prize yoxlanması aparılacaq
 
     return {
       answerId,

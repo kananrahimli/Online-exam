@@ -49,7 +49,11 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
+      # Client-side API URL (browser istifadə edir)
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${PORT:-3002}}
+      # Server-side API URL (Next.js server components istifadə edir)
+      # Docker-də backend service name istifadə olunur
+      NEXT_PUBLIC_INTERNAL_API_URL: ${NEXT_PUBLIC_INTERNAL_API_URL:-http://backend:${PORT:-3002}}
       NODE_ENV: ${NODE_ENV:-development}
     depends_on:
       - backend

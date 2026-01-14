@@ -44,9 +44,8 @@ export class ExamAttemptService {
     }
 
     // Calculate exam price
-    let examPrice = 3; // default 1 saat
-    if (exam.duration === 60) examPrice = 3;
-    else if (exam.duration === 120) examPrice = 5;
+    let examPrice = 3; // default 1 saat (60 dəqiqə)
+    if (exam.duration === 120) examPrice = 5;
     else if (exam.duration === 180) examPrice = 10;
 
     // Check if user has enough balance
@@ -362,6 +361,124 @@ export class ExamAttemptService {
     return { message: 'Answer saved' };
   }
 
+  // Helper function to normalize text for comparison
+  private normalizeText(text: string): string {
+    return text
+      .replace(/\s+/g, ' ') // Multiple spaces to single space
+      .replace(/[.,;:!?]/g, '') // Remove punctuation
+      .trim();
+  }
+
+  // Helper function to check if answer is correct
+  private checkAnswerCorrect(question: any, answer: any): boolean {
+    if (question.type !== 'MULTIPLE_CHOICE') return false;
+    if (!answer.optionId || !question.correctAnswer) return false;
+
+    // If correctAnswer is already an option ID (new format - cuid is ~25 chars), compare directly
+    if (question.correctAnswer.length > 15) {
+      // Option IDs are usually long strings (cuid format ~25 characters)
+      return answer.optionId === question.correctAnswer;
+    }
+
+    // If correctAnswer is an index (old format - "0", "1", "2", "3"), convert to option ID
+    const correctAnswerIndex = parseInt(question.correctAnswer, 10);
+    if (
+      !isNaN(correctAnswerIndex) &&
+      question.options &&
+      question.options.length > correctAnswerIndex
+    ) {
+      // Options are already sorted by order, so we can use array index
+      const correctOption = question.options[correctAnswerIndex];
+      if (correctOption) {
+        return answer.optionId === correctOption.id;
+      }
+    }
+
+    return false;
+  }
+
+  // Helper function to process open-ended question
+  private async processOpenEndedQuestion(
+    question: any,
+    answer: any,
+  ): Promise<{ isCorrect: boolean; points: number }> {
+    const studentAnswer = (answer.content || '').trim().toLowerCase();
+    const modelAnswer = (question.modelAnswer || '').trim().toLowerCase();
+
+    const normalizedStudent = this.normalizeText(studentAnswer);
+    const normalizedModel = this.normalizeText(modelAnswer);
+
+    let isCorrect = false;
+    let points = 0;
+
+    if (normalizedStudent === normalizedModel) {
+      // Exact match after normalization
+      isCorrect = true;
+      points = question.points;
+    } else if (normalizedStudent.length > 0 && normalizedModel.length > 0) {
+      // Check if student answer contains key words from model answer (at least 60% similarity)
+      const studentWords = normalizedStudent
+        .split(' ')
+        .filter((w) => w.length > 2);
+      const modelWords = normalizedModel.split(' ').filter((w) => w.length > 2);
+
+      if (studentWords.length > 0 && modelWords.length > 0) {
+        const matchingWords = studentWords.filter((word) =>
+          modelWords.some(
+            (modelWord) => modelWord.includes(word) || word.includes(modelWord),
+          ),
+        ).length;
+
+        const similarity =
+          matchingWords / Math.max(studentWords.length, modelWords.length);
+
+        if (similarity >= 0.6) {
+          isCorrect = true;
+          points = Math.round(question.points * similarity);
+        }
+      }
+    }
+
+    return { isCorrect, points };
+  }
+
+  // Helper function to process a single question
+  private async processQuestion(
+    question: any,
+    answer: any,
+  ): Promise<{ earnedPoints: number }> {
+    let earnedPoints = 0;
+
+    if (question.type === 'MULTIPLE_CHOICE') {
+      const isCorrect = this.checkAnswerCorrect(question, answer);
+      if (isCorrect) {
+        earnedPoints = question.points;
+      }
+      await this.prisma.answer.update({
+        where: { id: answer.id },
+        data: {
+          isCorrect,
+          points: isCorrect ? question.points : 0,
+        },
+      });
+    } else if (question.type === 'OPEN_ENDED') {
+      const { isCorrect, points } = await this.processOpenEndedQuestion(
+        question,
+        answer,
+      );
+      earnedPoints = points;
+      await this.prisma.answer.update({
+        where: { id: answer.id },
+        data: {
+          isCorrect,
+          points,
+        },
+      });
+    }
+
+    return { earnedPoints };
+  }
+
   async submitExam(attemptId: string, studentId: string) {
     const attempt = await this.prisma.examAttempt.findUnique({
       where: { id: attemptId },
@@ -419,34 +536,6 @@ export class ExamAttemptService {
     let totalScore = 0;
     let earnedScore = 0;
 
-    // Helper function to check if answer is correct
-    const checkAnswerCorrect = (question: any, answer: any): boolean => {
-      if (question.type !== 'MULTIPLE_CHOICE') return false;
-      if (!answer.optionId || !question.correctAnswer) return false;
-
-      // If correctAnswer is already an option ID (new format - cuid is ~25 chars), compare directly
-      if (question.correctAnswer.length > 15) {
-        // Option IDs are usually long strings (cuid format ~25 characters)
-        return answer.optionId === question.correctAnswer;
-      }
-
-      // If correctAnswer is an index (old format - "0", "1", "2", "3"), convert to option ID
-      const correctAnswerIndex = parseInt(question.correctAnswer, 10);
-      if (
-        !isNaN(correctAnswerIndex) &&
-        question.options &&
-        question.options.length > correctAnswerIndex
-      ) {
-        // Options are already sorted by order, so we can use array index
-        const correctOption = question.options[correctAnswerIndex];
-        if (correctOption) {
-          return answer.optionId === correctOption.id;
-        }
-      }
-
-      return false;
-    };
-
     // Process topic questions
     for (const topic of attempt.exam.topics) {
       for (const question of topic.questions) {
@@ -456,85 +545,8 @@ export class ExamAttemptService {
           (a) => a.questionId === question.id,
         );
         if (answer) {
-          if (question.type === 'MULTIPLE_CHOICE') {
-            const isCorrect = checkAnswerCorrect(question, answer);
-            if (isCorrect) {
-              earnedScore += question.points;
-            }
-            await this.prisma.answer.update({
-              where: { id: answer.id },
-              data: {
-                isCorrect,
-                points: isCorrect ? question.points : 0,
-              },
-            });
-          } else if (question.type === 'OPEN_ENDED') {
-            // Open-ended questions - compare with model answer using fuzzy matching
-            const studentAnswer = (answer.content || '').trim().toLowerCase();
-            const modelAnswer = (question.modelAnswer || '')
-              .trim()
-              .toLowerCase();
-
-            // Normalize both answers (remove extra spaces, punctuation normalization)
-            const normalize = (text: string) => {
-              return text
-                .replace(/\s+/g, ' ') // Multiple spaces to single space
-                .replace(/[.,;:!?]/g, '') // Remove punctuation
-                .trim();
-            };
-
-            const normalizedStudent = normalize(studentAnswer);
-            const normalizedModel = normalize(modelAnswer);
-
-            // Simple similarity check: if normalized answers are similar (80% match or exact match of keywords)
-            let isCorrect = false;
-            let points = 0;
-
-            if (normalizedStudent === normalizedModel) {
-              // Exact match after normalization
-              isCorrect = true;
-              points = question.points;
-              earnedScore += question.points;
-            } else if (
-              normalizedStudent.length > 0 &&
-              normalizedModel.length > 0
-            ) {
-              // Check if student answer contains key words from model answer (at least 60% similarity)
-              const studentWords = normalizedStudent
-                .split(' ')
-                .filter((w) => w.length > 2);
-              const modelWords = normalizedModel
-                .split(' ')
-                .filter((w) => w.length > 2);
-
-              if (studentWords.length > 0 && modelWords.length > 0) {
-                const matchingWords = studentWords.filter((word) =>
-                  modelWords.some(
-                    (modelWord) =>
-                      modelWord.includes(word) || word.includes(modelWord),
-                  ),
-                ).length;
-
-                const similarity =
-                  matchingWords /
-                  Math.max(studentWords.length, modelWords.length);
-
-                if (similarity >= 0.6) {
-                  isCorrect = true;
-                  points = Math.round(question.points * similarity);
-                  earnedScore += points;
-                }
-              }
-            }
-
-            await this.prisma.answer.update({
-              where: { id: answer.id },
-              data: {
-                isCorrect,
-                points,
-              },
-            });
-          }
+          const { earnedPoints } = await this.processQuestion(question, answer);
+          earnedScore += earnedPoints;
         }
       }
     }
@@ -545,83 +557,8 @@ export class ExamAttemptService {
 
       const answer = attempt.answers.find((a) => a.questionId === question.id);
       if (answer) {
-        if (question.type === 'MULTIPLE_CHOICE') {
-          const isCorrect = checkAnswerCorrect(question, answer);
-          if (isCorrect) {
-            earnedScore += question.points;
-          }
-          await this.prisma.answer.update({
-            where: { id: answer.id },
-            data: {
-              isCorrect,
-              points: isCorrect ? question.points : 0,
-            },
-          });
-        } else if (question.type === 'OPEN_ENDED') {
-          // Open-ended questions - compare with model answer using fuzzy matching
-          const studentAnswer = (answer.content || '').trim().toLowerCase();
-          const modelAnswer = (question.modelAnswer || '').trim().toLowerCase();
-
-          // Normalize both answers (remove extra spaces, punctuation normalization)
-          const normalize = (text: string) => {
-            return text
-              .replace(/\s+/g, ' ') // Multiple spaces to single space
-              .replace(/[.,;:!?]/g, '') // Remove punctuation
-              .trim();
-          };
-
-          const normalizedStudent = normalize(studentAnswer);
-          const normalizedModel = normalize(modelAnswer);
-
-          // Simple similarity check: if normalized answers are similar (80% match or exact match of keywords)
-          let isCorrect = false;
-          let points = 0;
-
-          if (normalizedStudent === normalizedModel) {
-            // Exact match after normalization
-            isCorrect = true;
-            points = question.points;
-            earnedScore += question.points;
-          } else if (
-            normalizedStudent.length > 0 &&
-            normalizedModel.length > 0
-          ) {
-            // Check if student answer contains key words from model answer (at least 60% similarity)
-            const studentWords = normalizedStudent
-              .split(' ')
-              .filter((w) => w.length > 2);
-            const modelWords = normalizedModel
-              .split(' ')
-              .filter((w) => w.length > 2);
-
-            if (studentWords.length > 0 && modelWords.length > 0) {
-              const matchingWords = studentWords.filter((word) =>
-                modelWords.some(
-                  (modelWord) =>
-                    modelWord.includes(word) || word.includes(modelWord),
-                ),
-              ).length;
-
-              const similarity =
-                matchingWords /
-                Math.max(studentWords.length, modelWords.length);
-
-              if (similarity >= 0.6) {
-                isCorrect = true;
-                points = Math.round(question.points * similarity);
-                earnedScore += points;
-              }
-            }
-          }
-
-          await this.prisma.answer.update({
-            where: { id: answer.id },
-            data: {
-              isCorrect,
-              points,
-            },
-          });
-        }
+        const { earnedPoints } = await this.processQuestion(question, answer);
+        earnedScore += earnedPoints;
       }
     }
 
@@ -1024,6 +961,38 @@ export class ExamAttemptService {
       (a, b) => parseFloat(b) - parseFloat(a),
     );
 
+    // Get all student IDs that will potentially receive prizes
+    const potentialWinners: string[] = [];
+    for (const scorePercentage of sortedScores) {
+      if (currentPosition > 3) break;
+      const tiedAttempts = attemptsByScore.get(scorePercentage)!;
+      for (const attempt of tiedAttempts) {
+        if (currentPosition <= 3) {
+          potentialWinners.push(attempt.studentId);
+        }
+      }
+      currentPosition += tiedAttempts.length;
+    }
+
+    // Batch check existing prizes for all potential winners
+    const existingPrizes = await this.prisma.payment.findMany({
+      where: {
+        studentId: { in: potentialWinners },
+        examId,
+        transactionId: {
+          startsWith: 'PRIZE-',
+        },
+      },
+      select: {
+        studentId: true,
+      },
+    });
+
+    const existingPrizeSet = new Set(existingPrizes.map((p) => p.studentId));
+
+    // Reset position counter
+    currentPosition = 1;
+
     for (const scorePercentage of sortedScores) {
       if (currentPosition > 3) break;
 
@@ -1049,57 +1018,64 @@ export class ExamAttemptService {
       const prizePerStudent = totalPrizeAmount / tiedAttempts.length;
 
       // Award prizes to all tied students
+      const prizeUpdates: Array<{
+        studentId: string;
+        amount: number;
+        position: number;
+      }> = [];
+
       for (const attempt of tiedAttempts) {
-        // Check if this student already received a prize for this exam
-        const existingPrize = await this.prisma.payment.findFirst({
-          where: {
+        // Check if this student already received a prize for this exam (using cached set)
+        if (!existingPrizeSet.has(attempt.studentId)) {
+          prizeUpdates.push({
             studentId: attempt.studentId,
-            examId,
-            transactionId: {
-              startsWith: 'PRIZE-',
-            },
-          },
-        });
-
-        // Only award if not already awarded
-        if (!existingPrize) {
-          console.log(
-            `[PRIZE] Awarding ${prizePerStudent} AZN to student ${attempt.studentId} (position ${currentPosition})`,
-          );
-
-          // Update student balance
-          const updatedUser = await this.prisma.user.update({
-            where: { id: attempt.studentId },
-            data: {
-              balance: {
-                increment: prizePerStudent,
-              },
-            },
-            select: {
-              id: true,
-              balance: true,
-            },
-          });
-
-          console.log(
-            `[PRIZE] Student ${attempt.studentId} balance updated to: ${updatedUser.balance} AZN`,
-          );
-
-          // Create payment record for prize
-          await this.prisma.payment.create({
-            data: {
-              studentId: attempt.studentId,
-              examId,
-              amount: prizePerStudent,
-              status: PaymentStatus.COMPLETED,
-              transactionId: `PRIZE-${currentPosition}-${examId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            },
+            amount: prizePerStudent,
+            position: currentPosition,
           });
         } else {
           console.log(
             `[PRIZE] Student ${attempt.studentId} already received prize for exam ${examId}`,
           );
         }
+      }
+
+      // Batch update balances and create payment records
+      for (const prizeUpdate of prizeUpdates) {
+        console.log(
+          `[PRIZE] Awarding ${prizeUpdate.amount} AZN to student ${prizeUpdate.studentId} (position ${prizeUpdate.position})`,
+        );
+
+        // Update student balance
+        const updatedUser = await this.prisma.user.update({
+          where: { id: prizeUpdate.studentId },
+          data: {
+            balance: {
+              increment: prizeUpdate.amount,
+            },
+          },
+          select: {
+            id: true,
+            balance: true,
+          },
+        });
+
+        console.log(
+          `[PRIZE] Student ${prizeUpdate.studentId} balance updated to: ${updatedUser.balance} AZN`,
+        );
+
+        // Create payment record for prize
+        await this.prisma.payment.create({
+          data: {
+            studentId: prizeUpdate.studentId,
+            examId,
+            amount: prizeUpdate.amount,
+            status: PaymentStatus.COMPLETED,
+            transactionId: `PRIZE-${prizeUpdate.position}-${examId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        });
+
+        // Add to set to prevent duplicate awards in same batch
+        existingPrizeSet.add(prizeUpdate.studentId);
       }
 
       // Move to next position after this group
@@ -1325,12 +1301,10 @@ export class ExamAttemptService {
       },
     });
 
-    // After manual grading, check if all results are ready and award prizes
-    // This ensures prizes are awarded after teacher finishes grading all open-ended questions
+    // After manual grading, check and award prizes if exam is no longer active (10 minutes passed)
+    // This ensures that when teacher re-grades open-ended questions, leaderboard and prizes are updated correctly
+    // For example: if a student's score changes after re-grading, their position and prize should be recalculated
     const examId = attempt.examId;
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
     const examDetails = await this.prisma.exam.findUnique({
       where: { id: examId },
       select: {
@@ -1338,9 +1312,21 @@ export class ExamAttemptService {
       },
     });
 
-    // Prize yoxlanması yalnız login olmuş şagird üçün aparılacaq (checkAndAwardPrizesForStudent funksiyasından)
-    // Manual grading-dən sonra prize yoxlanması aparılmır
-    // Şagird login olduqda prize yoxlanması aparılacaq
+    if (examDetails?.publishedAt) {
+      // Check if 10 minutes have passed since publish date
+      const tenMinutesAgo = new Date();
+      tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
+      const publishDate = new Date(examDetails.publishedAt);
+
+      if (publishDate <= tenMinutesAgo) {
+        // Exam is no longer active, check and award prizes
+        // This will recalculate leaderboard and prizes based on updated scores
+        console.log(
+          `[PRIZE] Manual grading completed for exam ${examId}. Recalculating prizes and leaderboard.`,
+        );
+        await this.awardPrizes(examId);
+      }
+    }
 
     return {
       answerId,

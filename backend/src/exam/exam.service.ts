@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
 import { ExamStatus, ExamAttemptStatus, PaymentStatus } from '@prisma/client';
-import { ExamAttemptService } from '../exam-attempt/exam-attempt.service';
+import { ExamAttemptService } from '../exam-attempt/services/exam-attempt.service';
 
 @Injectable()
 export class ExamService {

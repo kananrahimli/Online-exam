@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { PaymentService } from './payment.service';
+import { WithdrawalService } from './withdrawal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -19,7 +20,10 @@ import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Controller('payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly withdrawalService: WithdrawalService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -132,7 +136,7 @@ export class PaymentController {
     @CurrentUser() user: any,
     @Body() createWithdrawalDto: CreateWithdrawalDto,
   ) {
-    return this.paymentService.createWithdrawal(
+    return this.withdrawalService.createWithdrawal(
       user.id,
       createWithdrawalDto.amount,
       createWithdrawalDto.bankAccount,
@@ -143,7 +147,7 @@ export class PaymentController {
   @Get('teacher/withdrawals')
   @UseGuards(JwtAuthGuard)
   async getWithdrawals(@CurrentUser() user: any) {
-    return this.paymentService.getWithdrawals(user.id);
+    return this.withdrawalService.getWithdrawals(user.id);
   }
 
   @Post('admin/withdrawals/:withdrawalId/process')
@@ -153,7 +157,7 @@ export class PaymentController {
     @CurrentUser() user: any,
     @Body() body: { payriffOrderId?: string },
   ) {
-    return this.paymentService.processWithdrawal(
+    return this.withdrawalService.processWithdrawal(
       withdrawalId,
       user.id,
       body.payriffOrderId,
@@ -166,12 +170,15 @@ export class PaymentController {
     @CurrentUser() user: any,
     @Body() updateBankAccountDto: UpdateBankAccountDto,
   ) {
-    return this.paymentService.updateBankAccount(user.id, updateBankAccountDto);
+    return this.withdrawalService.updateBankAccount(
+      user.id,
+      updateBankAccountDto,
+    );
   }
 
   @Get('teacher/bank-account')
   @UseGuards(JwtAuthGuard)
   async getBankAccount(@CurrentUser() user: any) {
-    return this.paymentService.getBankAccount(user.id);
+    return this.withdrawalService.getBankAccount(user.id);
   }
 }

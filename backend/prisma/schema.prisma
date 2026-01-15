@@ -226,7 +226,11 @@ model Payment {
   attempt              ExamAttempt?   @relation(fields: [attemptId], references: [id])
   exam                 Exam?          @relation(fields: [examId], references: [id], onDelete: Cascade)
   student              User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
+  
+  // Race condition prevention for prize payments
+  @@unique([studentId, examId, transactionId], name: "unique_prize_payment")
+  @@index([examId, transactionId])
+  @@index([studentId])
   @@map("payments")
 }
 

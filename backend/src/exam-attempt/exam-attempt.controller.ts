@@ -7,7 +7,7 @@ import {
   UseGuards,
   Put,
 } from '@nestjs/common';
-import { ExamAttemptService } from './exam-attempt.service';
+import { ExamAttemptService } from './services/exam-attempt.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -90,7 +90,7 @@ export class ExamAttemptController {
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   async testAwardPrizes(@Param('examId') examId: string) {
     // Test endpoint to manually trigger prize awarding
-    await this.examAttemptService.checkAndAwardPrizes(examId);
+    await this.examAttemptService.checkAndAwardPrizesForExam(examId);
     return {
       message:
         'Mükafatlar yoxlanıldı və təqdim olundu (əgər şərtlər yerinə yetirilsə)',
@@ -102,8 +102,9 @@ export class ExamAttemptController {
   @Roles(UserRole.STUDENT)
   async checkPrizesForStudent(@CurrentUser() user: any) {
     // Endpoint to check and award prizes for student when they log in
-    const result =
-      await this.examAttemptService.checkAndAwardPrizesForStudent(user.id);
+    const result = await this.examAttemptService.checkAndAwardPrizesForStudent(
+      user.id,
+    );
     return {
       message: 'Mükafatlar yoxlanıldı',
       ...result,
